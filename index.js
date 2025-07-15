@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const app = express();
 
@@ -44,17 +45,14 @@ const connectDB = async () => {
 const bookingSchema = new mongoose.Schema({
   room: {
     type: mongoose.Schema.Types.ObjectId,
-   
     required: true
   },
   user: {
     type: String,
-   
     required: true
   },
   hotel: {
     type: mongoose.Schema.Types.ObjectId,
-   
     required: true
   },
   bookingType: {
@@ -77,10 +75,10 @@ const bookingSchema = new mongoose.Schema({
   
 }, {
   timestamps: true,
-  collection:bookings
+  collection:'bookings'
 });
 
-module.exports = mongoose.model("Booking", bookingSchema);
+const Booking = mongoose.model("Booking", bookingSchema);
 
 
 // Middleware to verify JWT token
@@ -116,5 +114,72 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+app.get('/current', verifyToken, async (req, res) => {
+  try {
+    console.log('Fetching bookings for hotel:', req.user.username);
+
+    const bookings = await Booking.find({ user: req.user.username });
+
+    // Fetch hotel and room details for each booking
+    const bookingsWithDetails = await Promise.all(
+  bookings.map(async (booking) => {
+    try {
+      const config = {
+        headers: {
+          Authorization: req.headers.authorization // Pass user's token to the other service
+        }
+      };
+      const hotid = '686950d7157ab0885a0f1220'
+      const roid = '686cf169841b98250856f05a'
+      const strhot=(booking.hotel).toString()
+      const strrom=(booking.room).toString()
+      console.log(`Fetching hotel ${hotid} and room ${roid} details for booking ${booking._id}`);
+      console.log(booking.hotel, booking.room);
+      console.log(strhot, strrom);
+      console.log(hotid, roid);
+      console.log(typeof booking.hotel, typeof booking.room);
+      console.log(typeof strhot, typeof strrom);
+      console.log(typeof hotid, typeof roid); 
+
+      const [hotelRes, roomRes] = await Promise.all([
+        axios.get(`http://localhost:3000/accommodation/hotel/${strhot}`, config),
+        axios.get(`http://localhost:3000/accommodation/rooms/${strrom}`, config)
+      ]);
+
+      return {
+        ...booking._doc,
+        hotel: hotelRes.data,
+        room: roomRes.data
+      };
+    } catch (err) {
+      console.error('Error fetching hotel/room:', err.message);
+      return {
+        ...booking._doc,
+        hotel: {
+          _id: booking.hotel,
+          name: 'Hotel details unavailable',
+          location: 'Unknown',
+          error: err.message
+        },
+        room: {
+          _id: booking.room,
+          name: 'Room details unavailable',
+          type: 'Unknown',
+          error: err.message
+        }
+      };
+    }
+  })
+);
+
+     
+
+    res.status(200).json(bookingsWithDetails);
+  } catch (err) {
+    console.error('Error fetching bookings:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 startServer();
