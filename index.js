@@ -7,6 +7,7 @@ const cors = require('cors');
 const config = require('./src/config');
 const { connectDB } = require('./src/config/database');
 const tourGuideRoutes = require('./src/tourguide/routes');
+const { errorConverter, errorHandler, notFound } = require('./src/middleware/errorHandler');
 
 const app = express();
 
@@ -23,17 +24,10 @@ app.get('/health', (req, res) => {
 // Namespaced routes
 app.use('/tourguide', tourGuideRoutes);
 
-// Not found handler
-app.use((req, res) => {
-  logger.warn('Route not found', { method: req.method, path: req.path });
-  res.status(404).json({ success: false, message: 'Route not found' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  logger.error('Unhandled error', { error: err?.stack || String(err) });
-  res.status(500).json({ success: false, message: 'Internal server error' });
-});
+// Not found and error handlers
+app.use(notFound);
+app.use(errorConverter);
+app.use(errorHandler);
 
 // Start
 connectDB().then(() => {
