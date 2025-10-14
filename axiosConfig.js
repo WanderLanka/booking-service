@@ -1,51 +1,47 @@
-// axiosConfig.js - Updated with debug logging
-import axios from 'axios';
+// axiosConfig.js - Node-safe Axios client for server-to-server calls
+const axios = require('axios');
 
-// Create axios instance
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-  timeout: 10000,
-});
+// Factory to create a configured Axios instance per request/context
+const createApiClient = ({ baseURL, token, timeout = 10000, headers = {} } = {}) => {
+  const instance = axios.create({
+    baseURL: baseURL || process.env.DOWNSTREAM_BASE_URL || 'http://localhost:3000',
+    timeout,
+    headers,
+  });
 
-// Request interceptor to add token to headers
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    
-    // Debug logging
-    console.log('🔍 Axios Request Interceptor:');
-    console.log('Token from localStorage:', token ? 'Found' : 'Not found');
-    console.log('Request URL:', config.baseURL + config.url);
-    
-   
-    
-    console.log('Request headers:', config.headers);
-    return config;
-  },
-  (error) => {
-    console.error('Request interceptor error:', error);
-    return Promise.reject(error);
-  }
-);
+  // Add Authorization header if provided
+  instance.interceptors.request.use(
+    (config) => {
+      if (token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      // Identify this service in downstream logs
+      config.headers['x-requested-by'] = 'booking-service';
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('➡️  HTTP', config.method?.toUpperCase(), config.baseURL + config.url);
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
-// Response interceptor to handle token expiration
-api.interceptors.response.use(
-  (response) => {
-    console.log('✅ Response received:', response.status, response.config.url);
-    return response;
-  },
-  (error) => {
-    console.error('❌ Response error:', error.response?.status, error.response?.data);
-    
-    if (error.response?.status === 401) {
-      console.log('🚪 Token expired or invalid, redirecting to login...');
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/auth';
+  instance.interceptors.response.use(
+    (response) => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('⬅️  HTTP', response.status, response.config.url);
+      }
+      return response;
+    },
+    (error) => {
+      const status = error.response?.status;
+      const url = error.config?.url;
+      console.error('❌ HTTP error', status || 'unknown', url || '');
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
-);
+  );
 
-export default api;
+  return instance;
+};
+
+module.exports = { createApiClient };
