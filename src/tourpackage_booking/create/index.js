@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const TourPackageBooking = require('../../models/TourPackageBooking');
 const { createBookingSchema } = require('../../validators/tourPackageBookingValidators');
 const { createPaymentIntent, capturePayment } = require('../../services/mockPaymentGateway');
+const { incrementTourPackageBookingCount } = require('../../services/guideServiceClient');
 
 const router = express.Router();
 
@@ -88,6 +89,15 @@ router.post('/', async (req, res, next) => {
       },
       { new: true }
     );
+
+    // If confirmed, notify guide-service to increment booking count
+    if (bookingStatus === 'confirmed') {
+      try {
+        await incrementTourPackageBookingCount(tourPackageId, 1);
+      } catch (e) {
+        // Non-blocking: log and continue
+      }
+    }
 
     const refreshed = await TourPackageBooking.findById(bookingDoc._id).lean();
 

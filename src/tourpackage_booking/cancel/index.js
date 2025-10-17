@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const TourPackageBooking = require('../../models/TourPackageBooking');
+const { incrementTourPackageBookingCount } = require('../../services/guideServiceClient');
 
 const router = express.Router();
 
@@ -17,11 +18,21 @@ router.post('/:id', async (req, res, next) => {
       return res.json({ success: true, data: doc });
     }
 
+    const wasConfirmed = doc.status === 'confirmed';
     doc.status = 'cancelled';
     if (doc.payment) {
       doc.payment.status = 'cancelled';
     }
     await doc.save();
+
+    // If previously confirmed, decrement booking count on guide-service (non-blocking)
+    if (wasConfirmed) {
+      try {
+        await incrementTourPackageBookingCount(doc.tourPackageId, -1);
+      } catch (e) {
+        // ignore
+      }
+    }
     res.json({ success: true, data: doc });
   } catch (err) {
     next(err);
