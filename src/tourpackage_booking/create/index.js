@@ -29,35 +29,27 @@ router.post('/', async (req, res, next) => {
       paymentMethod,
     } = value;
 
-    const session = await mongoose.startSession();
-    let bookingDoc;
-    await session.withTransaction(async () => {
-      bookingDoc = await TourPackageBooking.create([
-        {
-          userId,
-          tourPackageId,
-          packageTitle,
-          packageSlug,
-          guideId,
-          startDate,
-          endDate,
-          peopleCount,
-          pricing,
-          status: 'pending',
-          payment: {
-            provider: 'mockpay',
-            status: 'pending',
-            currency: pricing.currency,
-            amount: pricing.totalAmount,
-            method: paymentMethod === 'card' ? 'card' : 'mock',
-          },
-          notes,
-        },
-      ], { session });
-
-      bookingDoc = bookingDoc[0];
+    // Create booking without transactions (works on standalone MongoDB)
+    let bookingDoc = await TourPackageBooking.create({
+      userId,
+      tourPackageId,
+      packageTitle,
+      packageSlug,
+      guideId,
+      startDate,
+      endDate,
+      peopleCount,
+      pricing,
+      status: 'pending',
+      payment: {
+        provider: 'mockpay',
+        status: 'pending',
+        currency: pricing.currency,
+        amount: pricing.totalAmount,
+        method: paymentMethod === 'card' ? 'card' : 'mock',
+      },
+      notes,
     });
-    session.endSession();
 
     // Create mock payment intent and capture immediately (for sandbox flow)
     const intent = await createPaymentIntent({
