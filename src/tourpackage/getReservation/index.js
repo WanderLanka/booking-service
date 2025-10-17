@@ -1,9 +1,9 @@
-const TourGuideReservation = require('../../models/TourGuideReservation');
+const TourPackageReservation = require('../../models/TourPackageReservation');
 
 module.exports = async (req, res) => {
   try {
     const { id } = req.params;
-    const reservation = await TourGuideReservation.findById(id);
+    const reservation = await TourPackageReservation.findById(id);
     if (!reservation) {
       return res.status(404).json({ success: false, message: 'Reservation not found' });
     }

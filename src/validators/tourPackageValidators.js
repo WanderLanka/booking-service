@@ -2,7 +2,7 @@ const Joi = require('joi');
 
 const createReservationSchema = Joi.object({
   userId: Joi.string().required(),
-  guideId: Joi.string().required(),
+  packageId: Joi.string().required(),
   startDate: Joi.date().iso().required(),
   endDate: Joi.date().iso().greater(Joi.ref('startDate')).required(),
   notes: Joi.string().max(1000).allow('', null),

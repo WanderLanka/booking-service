@@ -6,7 +6,7 @@ const cors = require('cors');
 
 const config = require('./src/config');
 const { connectDB } = require('./src/config/database');
-const tourGuideRoutes = require('./src/tourguide/routes');
+const tourPackageRoutes = require('./src/tourpackage/routes');
 const { errorConverter, errorHandler, notFound } = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -22,7 +22,7 @@ app.get('/health', (req, res) => {
 });
 
 // Namespaced routes
-app.use('/tourguide', tourGuideRoutes);
+app.use('/tourpackage', tourPackageRoutes);
 
 // Not found and error handlers
 app.use(notFound);

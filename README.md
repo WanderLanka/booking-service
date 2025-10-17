@@ -1,6 +1,6 @@
 # WanderLanka Booking Service
 
-Booking microservice focusing on Tour Guide bookings (Transport and Accommodation stubs included).
+Booking microservice focusing on Tour Package bookings (Transport and Accommodation stubs included).
 
 ## Structure
 
@@ -17,8 +17,8 @@ booking-service/
       auth.js
       validate.js
     models/
-      TourGuideReservation.js
-    tourguide/
+      TourPackageReservation.js
+    tourpackage/
       common/
         index.js
       createReservation/
@@ -39,19 +39,19 @@ booking-service/
     utils/
       pricing.js
     validators/
-      tourGuideValidators.js
+      tourPackageValidators.js
 ```
 
 ## API
 
-Base path: `/tourguide`
+Base path: `/tourpackage`
 
 - POST `/reservations` (auth required)
-  - body: { userId, guideId, startDate, endDate, notes? }
+  - body: { userId, packageId, startDate, endDate, notes? }
   - creates a reservation (status=pending) if no overlap; computes simple price
 
 - GET `/reservations` (auth required)
-  - query: guideId?, userId?, status?
+  - query: packageId?, userId?, status?
 
 - GET `/reservations/:id` (auth required)
 

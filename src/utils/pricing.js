@@ -1,4 +1,4 @@
-// Simple pricing utility for tour guide booking
+// Simple pricing utility for tour package booking
 // In a real system, this could query dynamic rates or apply promotions
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -10,7 +10,7 @@ const calculateDays = (startDate, endDate) => {
   return Math.max(diff, 1);
 };
 
-const calculateTourGuidePrice = ({ startDate, endDate, baseDailyRate = 100 }) => {
+const calculateTourPackagePrice = ({ startDate, endDate, baseDailyRate = 100 }) => {
   const days = calculateDays(startDate, endDate);
   return {
     days,
@@ -19,5 +19,5 @@ const calculateTourGuidePrice = ({ startDate, endDate, baseDailyRate = 100 }) =>
 };
 
 module.exports = {
-  calculateTourGuidePrice,
+  calculateTourPackagePrice,
 };

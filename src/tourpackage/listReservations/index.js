@@ -1,14 +1,14 @@
-const TourGuideReservation = require('../../models/TourGuideReservation');
+const TourPackageReservation = require('../../models/TourPackageReservation');
 
 module.exports = async (req, res) => {
   try {
-    const { guideId, userId, status } = req.query;
+    const { packageId, userId, status } = req.query;
     const filter = {};
-    if (guideId) filter.guideId = guideId;
+    if (packageId) filter.packageId = packageId;
     if (userId) filter.userId = userId;
     if (status) filter.status = status;
 
-    const reservations = await TourGuideReservation.find(filter).sort({ createdAt: -1 });
+    const reservations = await TourPackageReservation.find(filter).sort({ createdAt: -1 });
     return res.json({ success: true, data: reservations });
   } catch (err) {
     console.error('List reservations error:', err);

@@ -1,9 +1,9 @@
-const TourGuideReservation = require('../../models/TourGuideReservation');
+const TourPackageReservation = require('../../models/TourPackageReservation');
 
 module.exports = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await TourGuideReservation.findByIdAndUpdate(
+    const updated = await TourPackageReservation.findByIdAndUpdate(
       id,
       { status: 'cancelled', updatedBy: req.user?.id },
       { new: true }

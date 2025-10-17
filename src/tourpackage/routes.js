@@ -9,7 +9,7 @@ const cancelReservation = require('./cancelReservation');
 
 const router = express.Router();
 
-// All tourguide routes are protected
+// All tourpackage routes are protected
 router.post('/reservations', auth, ...createReservation);
 router.get('/reservations', auth, listReservations);
 router.get('/reservations/:id', auth, getReservation);
