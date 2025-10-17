@@ -9,11 +9,17 @@ const cancelBooking = require('./cancelBooking');
 
 const router = express.Router();
 
-// All tourpackage routes are protected
-router.post('/bookings', auth, ...createBooking);
-router.get('/bookings', auth, listBookings);
-router.get('/bookings/:id', auth, getBooking);
-router.patch('/bookings/:id', auth, ...updateBooking);
-router.post('/bookings/:id/cancel', auth, cancelBooking);
+// Alias for explicit create path
+router.post('/createBooking', auth, ...createBooking); // array of [validate, handler]
+
+// Single handler controllers should not be spread
+router.get('/getBooking/:id', auth, getBooking);
+router.get('/listBookings', auth, listBookings);
+
+// updateBooking exports [validate, handler]
+router.patch('/updateBooking/:id', auth, ...updateBooking);
+
+// cancelBooking is a single handler
+router.post('/cancelBooking/:id', auth, cancelBooking);
 
 module.exports = router;
