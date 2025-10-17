@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const TourPackageReservationSchema = new mongoose.Schema(
+const TourPackageBookingSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true },
     packageId: { type: String, required: true },
@@ -18,10 +18,10 @@ const TourPackageReservationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    collection: 'tourpackage_reservations',
+    collection: 'tourpackage_bookings',
   }
 );
 
-TourPackageReservationSchema.index({ packageId: 1, startDate: 1, endDate: 1 });
+TourPackageBookingSchema.index({ packageId: 1, startDate: 1, endDate: 1 });
 
-module.exports = mongoose.model('TourPackageReservation', TourPackageReservationSchema);
+module.exports = mongoose.model('TourPackageBooking', TourPackageBookingSchema);

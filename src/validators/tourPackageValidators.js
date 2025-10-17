@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-const createReservationSchema = Joi.object({
+const createBookingSchema = Joi.object({
   userId: Joi.string().required(),
   packageId: Joi.string().required(),
   startDate: Joi.date().iso().required(),
@@ -8,7 +8,7 @@ const createReservationSchema = Joi.object({
   notes: Joi.string().max(1000).allow('', null),
 });
 
-const updateReservationSchema = Joi.object({
+const updateBookingSchema = Joi.object({
   startDate: Joi.date().iso(),
   endDate: Joi.date().iso().greater(Joi.ref('startDate')),
   status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed'),
@@ -16,6 +16,6 @@ const updateReservationSchema = Joi.object({
 }).min(1);
 
 module.exports = {
-  createReservationSchema,
-  updateReservationSchema,
+  createBookingSchema,
+  updateBookingSchema,
 };

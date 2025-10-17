@@ -17,19 +17,19 @@ booking-service/
       auth.js
       validate.js
     models/
-      TourPackageReservation.js
+      TourPackageBooking.js
     tourpackage/
       common/
         index.js
-      createReservation/
+      createBooking/
         index.js
-      getReservation/
+      getBooking/
         index.js
-      listReservations/
+      listBookings/
         index.js
-      updateReservation/
+      updateBooking/
         index.js
-      cancelReservation/
+      cancelBooking/
         index.js
       routes.js
     transport/
@@ -46,20 +46,20 @@ booking-service/
 
 Base path: `/tourpackage`
 
-- POST `/reservations` (auth required)
+- POST `/bookings` (auth required)
   - body: { userId, packageId, startDate, endDate, notes? }
-  - creates a reservation (status=pending) if no overlap; computes simple price
+  - creates a booking (status=pending) if no overlap; computes simple price
 
-- GET `/reservations` (auth required)
+- GET `/bookings` (auth required)
   - query: packageId?, userId?, status?
 
-- GET `/reservations/:id` (auth required)
+- GET `/bookings/:id` (auth required)
 
-- PATCH `/reservations/:id` (auth required)
+- PATCH `/bookings/:id` (auth required)
   - body: startDate?, endDate?, status?, notes?
   - prevents overlaps on date changes
 
-- POST `/reservations/:id/cancel` (auth required)
+- POST `/bookings/:id/cancel` (auth required)
 
 ## Env
 
