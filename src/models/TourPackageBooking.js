@@ -30,7 +30,7 @@ const TourPackageBookingSchema = new mongoose.Schema(
       totalAmount: { type: Number, required: true, min: 0 },
       perPerson: { type: Boolean, default: false },
     },
-    status: { type: String, enum: ['pending', 'confirmed', 'cancelled'], default: 'pending', index: true },
+  status: { type: String, enum: ['pending', 'approved', 'confirmed', 'cancelled'], default: 'pending', index: true },
     payment: PaymentSchema,
     notes: { type: String },
   },
