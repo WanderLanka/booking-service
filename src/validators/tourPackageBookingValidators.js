@@ -18,6 +18,11 @@ const createBookingSchema = Joi.object({
   notes: Joi.string().allow('').optional(),
   // For mock payment
   paymentMethod: Joi.string().valid('mock', 'card').default('mock'),
+  // Cancellation policy from package
+  cancellationPolicy: Joi.object({
+    freeCancellation: Joi.boolean().optional(),
+    freeCancellationWindow: Joi.string().optional(),
+  }).optional(),
 });
 
 module.exports = { createBookingSchema };

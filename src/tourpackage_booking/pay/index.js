@@ -75,15 +75,22 @@ router.post('/:id', async (req, res, next) => {
     };
     await booking.save();
 
-    // When payment is confirmed, update both package and guide metrics
+    // When payment is confirmed, update both package and guide metrics and block guide availability
     if (bookingStatus === 'confirmed') {
       try {
         // Increment tour package booking count
         await incrementTourPackageBookingCount(booking.tourPackageId, 1);
         
-        // Increment guide's total bookings metric
+        // Increment guide's total bookings metric and block the date range
         if (booking.guideId) {
           await incrementGuideBookingCount(booking.guideId, 1);
+          // Block the guide's availability for the booked date range (inclusive)
+          const { blockGuideAvailability } = require('../../services/guideServiceClient');
+          await blockGuideAvailability(
+            booking.guideId,
+            booking.startDate,
+            booking.endDate
+          );
         }
       } catch (e) {
         // non-blocking - log but don't fail the booking
