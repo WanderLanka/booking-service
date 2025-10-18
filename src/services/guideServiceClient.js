@@ -14,4 +14,19 @@ async function incrementTourPackageBookingCount(tourPackageId, increment = 1) {
   }
 }
 
-module.exports = { incrementTourPackageBookingCount };
+async function incrementGuideBookingCount(guideId, increment = 1) {
+  const baseUrl = config.guideServiceUrl;
+  const url = `${baseUrl}/guide/${guideId}/booking-count`;
+  try {
+    const res = await axios.patch(url, { increment });
+    return res.data;
+  } catch (err) {
+    logger.warn(`Failed to update booking count for guide ${guideId}: ${err.message}`);
+    throw err;
+  }
+}
+
+module.exports = { 
+  incrementTourPackageBookingCount,
+  incrementGuideBookingCount,
+};

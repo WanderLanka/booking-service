@@ -21,7 +21,7 @@ const TourPackageBookingSchema = new mongoose.Schema(
     packageTitle: { type: String, required: true },
     packageSlug: { type: String },
     guideId: { type: mongoose.Schema.Types.ObjectId },
-    startDate: { type: Date, required: true },
+    startDate: { type: Date, required: true, index: true },
     endDate: { type: Date, required: true },
     peopleCount: { type: Number, min: 1, default: 1 },
     pricing: {
@@ -30,11 +30,20 @@ const TourPackageBookingSchema = new mongoose.Schema(
       totalAmount: { type: Number, required: true, min: 0 },
       perPerson: { type: Boolean, default: false },
     },
-  status: { type: String, enum: ['pending', 'approved', 'confirmed', 'cancelled'], default: 'pending', index: true },
+  status: { type: String, enum: ['pending', 'approved', 'confirmed', 'completed', 'cancelled', 'declined'], default: 'pending', index: true },
     payment: PaymentSchema,
     notes: { type: String },
+    // Cancellation policy snapshot from package
+    cancellationPolicy: {
+      freeCancellation: { type: Boolean, default: false },
+      freeCancellationWindow: { type: String }, // '1_day_before', '7_days_before', etc.
+    },
   },
   { timestamps: true, collection: 'tourpackage_bookings' }
 );
+
+// Compound index for efficient availability checking
+// Used to find conflicting bookings by guide and date range
+TourPackageBookingSchema.index({ guideId: 1, status: 1, startDate: 1, endDate: 1 });
 
 module.exports = mongoose.model('TourPackageBooking', TourPackageBookingSchema);
