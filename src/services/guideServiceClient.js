@@ -42,4 +42,19 @@ module.exports = {
   incrementTourPackageBookingCount,
   incrementGuideBookingCount,
   blockGuideAvailability,
+  /**
+   * Update guide response time metric via guide-service
+   */
+  async updateGuideResponseTime(guideId, responseTimeMs, alpha = 0.3) {
+    const baseUrl = config.guideServiceUrl;
+    const url = `${baseUrl}/guide/${guideId}/response-time`;
+    try {
+      const res = await axios.patch(url, { responseTimeMs, alpha });
+      return res.data;
+    } catch (err) {
+      logger.warn(`Failed to update response time for guide ${guideId}: ${err.message}`);
+      // Do not throw - metric updates shouldn't break booking flows
+      return null;
+    }
+  }
 };

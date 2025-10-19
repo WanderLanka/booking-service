@@ -1,5 +1,6 @@
 const express = require('express');
 const TourPackageBooking = require('../../models/TourPackageBooking');
+const { updateGuideResponseTime } = require('../../services/guideServiceClient');
 
 const router = express.Router();
 
@@ -38,6 +39,16 @@ router.post('/:id', async (req, res, next) => {
     }
     
     await booking.save();
+
+    // Update response time metric for decline as well
+    try {
+      const now = Date.now();
+      const created = new Date(booking.createdAt).getTime();
+      const responseTimeMs = Math.max(0, now - created);
+      if (booking.guideId) {
+        updateGuideResponseTime(booking.guideId, responseTimeMs).catch(() => {});
+      }
+    } catch {}
 
     res.json({ 
       success: true, 
