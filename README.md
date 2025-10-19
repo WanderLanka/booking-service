@@ -1,91 +1,67 @@
-# WanderLanka Booking Service
+# Booking Service
 
-Booking microservice focusing on Tour Guide bookings (Transport and Accommodation stubs included).
+Tour package booking microservice for WanderLanka. Connects to MongoDB database `wanderlanka_booking` and exposes endpoints to create, get, list, and cancel tour package bookings. Includes a mock payment gateway for non-production.
 
-## Structure
+## Environment
 
-```
-booking-service/
-  index.js
-  package.json
-  .env (create)
-  src/
-    config/
-      index.js
-      database.js
-    middleware/
-      auth.js
-      validate.js
-    models/
-      TourGuideReservation.js
-    tourguide/
-      common/
-        index.js
-      createReservation/
-        index.js
-      getReservation/
-        index.js
-      listReservations/
-        index.js
-      updateReservation/
-        index.js
-      cancelReservation/
-        index.js
-      routes.js
-    transport/
-      README.md
-    accommodation/
-      README.md
-    utils/
-      pricing.js
-    validators/
-      tourGuideValidators.js
-```
+Copy `.env.example` to `.env` and adjust as needed:
 
-## API
-
-Base path: `/tourguide`
-
-- POST `/reservations` (auth required)
-  - body: { userId, guideId, startDate, endDate, notes? }
-  - creates a reservation (status=pending) if no overlap; computes simple price
-
-- GET `/reservations` (auth required)
-  - query: guideId?, userId?, status?
-
-- GET `/reservations/:id` (auth required)
-
-- PATCH `/reservations/:id` (auth required)
-  - body: startDate?, endDate?, status?, notes?
-  - prevents overlaps on date changes
-
-- POST `/reservations/:id/cancel` (auth required)
-
-## Env
-
-Create `.env` at project root:
-
-```
-PORT=3009
-# Booking service dedicated DB (preferred)
-BOOKING_MONGO_URI=mongodb://localhost:27017/wanderlanka_booking
-# Optional explicit db name if your URI omits it
-# BOOKING_DB_NAME=wanderlanka_booking
-
-# Fallbacks (used only if BOOKING_MONGO_URI is not set)
-# MONGO_URI=mongodb://localhost:27017/wanderlanka_booking
-
-JWT_SECRET=dev-secret
-CORS_ORIGINS=http://localhost:5173
-```
+- PORT: default 3009
+- BOOKING_MONGO_URI: e.g. mongodb://localhost:27017
+- BOOKING_DB_NAME: wanderlanka_booking
+- CORS_ORIGINS: comma-separated list
+- LOG_LEVEL: info
 
 ## Run
 
-- Install deps
-- Start dev
+1. Install deps in this folder
+2. Start dev server with automatic reload
 
-If using npm scripts:
+## Endpoints
 
-- `npm run dev`
+Base URL: http://localhost:3009
 
-Health check: `GET /health`
+- GET /health
+- POST /tourpackage_booking/create
+- GET /tourpackage_booking/get/:id
+- GET /tourpackage_booking/list?userId=&tourPackageId=&status=
+- POST /tourpackage_booking/cancel/:id
+- POST /payments/mock/test
+
+### Create booking payload
+
+{
+  "userId": "64b7e3f1c5a5f3c1a1b2c3d4",
+  "tourPackageId": "64b7e3f1c5a5f3c1a1b2c3d5",
+  "packageTitle": "Sri Lanka Highlights",
+  "packageSlug": "sri-lanka-highlights",
+  "guideId": "64b7e3f1c5a5f3c1a1b2c3d6",
+  "startDate": "2025-11-01",
+  "endDate": "2025-11-07",
+  "peopleCount": 2,
+  "pricing": { "currency": "USD", "unitAmount": 500, "totalAmount": 1000, "perPerson": true },
+  "notes": "Honeymoon trip",
+  "paymentMethod": "mock"
+}
+
+On success, booking is created and payment is captured via the mock gateway. The booking status becomes "confirmed" if capture succeeds, otherwise remains "pending".
+
+## API Gateway
+
+The API Gateway is configured to proxy booking requests under `/booking` to this service (default http://localhost:3009). Example through gateway:
+
+- POST http://localhost:3000/booking/tourpackage_booking/create
+
+## Implementation Notes
+
+- Stack: Express, Mongoose, Joi, Winston, Morgan
+- Model: `TourPackageBooking` collection `tourpackage_bookings`
+- Mock Payment: `src/services/mockPaymentGateway.js` simulates intent + capture
+- Folder structure mirrors other services under `src/`
+
+## Next steps
+
+- Add auth middleware verifying user identity (via JWT) once available
+- Integrate with guide-service to increment `bookingCount` on confirmed payments
+- Idempotency keys for create to avoid duplicate charges
+- Webhook-style payment updates for real gateway (Stripe, PayHere, etc.)
