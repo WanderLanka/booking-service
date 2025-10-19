@@ -223,4 +223,100 @@ router.post('/enhanced/:bookingId/cancel', async (req, res) => {
   }
 });
 
+/**
+ * GET /test - Simple test endpoint to verify service is working
+ */
+router.get('/test', (req, res) => {
+  console.log('🎯 GET /test endpoint reached');
+  res.json({
+    success: true,
+    message: 'Enhanced booking service is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * GET /userBookings - Get all bookings for the authenticated user
+ */
+router.get('/userBookings', async (req, res) => {
+  try {
+    console.log('🎯 GET /userBookings endpoint reached');
+    console.log('Request details:', {
+      method: req.method,
+      url: req.url,
+      user: req.user ? {
+        userId: req.user.userId,
+        email: req.user.email,
+        role: req.user.role
+      } : 'No user attached',
+      headers: {
+        authorization: req.headers.authorization ? 'Present' : 'Missing'
+      }
+    });
+
+    // Extract user information from JWT token
+    const userId = req.user?.userId;
+    const userEmail = req.user?.email;
+    const userRole = req.user?.role;
+    
+    logger.info('📋 Getting user bookings for authenticated user', { 
+      userId, 
+      userEmail, 
+      userRole,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validate that user information exists in token
+    if (!userId && !userEmail) {
+      console.log('❌ No user information found in JWT token');
+      logger.warn('❌ Unauthorized access attempt - no user info in token');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        error: 'No user information found in token'
+      });
+    }
+
+    // Additional security: Ensure user is authenticated
+    if (!req.user) {
+      console.log('❌ No user object attached to request');
+      logger.warn('❌ Unauthorized access attempt - no user object');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        error: 'User not authenticated'
+      });
+    }
+
+    console.log('✅ Authenticated user found, fetching bookings for:', { userId, userEmail });
+    
+    // Get bookings ONLY for the authenticated user
+    const result = await enhancedBookingService.getUserBookings(userId, userEmail);
+
+    console.log('✅ getUserBookings service completed successfully for user:', { userId, userEmail });
+    logger.info('✅ User bookings retrieved successfully', { 
+      userId, 
+      userEmail, 
+      bookingCount: result.data?.length || 0 
+    });
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Failed to get user bookings:', error);
+    logger.error('❌ Failed to get user bookings:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.userId,
+      userEmail: req.user?.email
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get user bookings',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
 module.exports = router;
