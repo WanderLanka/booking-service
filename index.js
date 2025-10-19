@@ -16,13 +16,17 @@ app.use(cors({ origin: config.corsOrigins, credentials: true }));
 app.use(express.json());
 app.use(morgan('combined', { stream: logger.stream }));
 
-// Health
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'booking-service', timestamp: new Date().toISOString() });
-});
+// Import routes
+const bookingRoutes = require('./src/routes/bookingRoutes');
+const healthRoutes = require('./src/routes/healthRoutes');
 
-// Namespaced routes
+// Authentication middleware for protected routes
+const authMiddleware = require('./src/middleware/auth');
+
+// Routes
+app.use('/', healthRoutes); // Health routes (no auth required)
 app.use('/tourguide', tourGuideRoutes);
+app.use('/', authMiddleware, bookingRoutes); // Booking routes (auth required)
 
 // Not found and error handlers
 app.use(notFound);

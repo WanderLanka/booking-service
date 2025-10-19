@@ -1,0 +1,11 @@
+{
+  "name": "start-mock-services",
+  "scripts": {
+    "start-payment": "node mockPaymentService.js",
+    "start-accommodation": "PORT=3003 node mockAccommodationService.js",
+    "start-transportation": "PORT=3002 node mockTransportationService.js", 
+    "start-guide": "PORT=3005 node mockGuideService.js",
+    "start-all-mocks": "concurrently \"npm run start-payment\" \"npm run start-accommodation\" \"npm run start-transportation\" \"npm run start-guide\"",
+    "start-booking": "node index.js"
+  }
+}
