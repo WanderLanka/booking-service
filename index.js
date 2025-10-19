@@ -10,6 +10,7 @@ const { errorConverter, errorHandler, notFound } = require('./src/middleware/err
 // Routers
 const tourPackageBookingRoutes = require('./src/tourpackage_booking/routes');
 const paymentsRoutes = require('./src/payments/routes');
+const enhancedBookingRoutes = require('./src/routes/enhancedBookingRoutes');
 
 const app = express();
 
@@ -30,6 +31,8 @@ app.use('/public', express.static(path.join(process.cwd(), 'public')));
 // Mount routes
 app.use('/tourpackage_booking', tourPackageBookingRoutes);
 app.use('/payments', paymentsRoutes);
+// Enhanced booking routes - mounted at root to handle API Gateway forwarding
+app.use('/', enhancedBookingRoutes);
 
 app.use(notFound);
 app.use(errorConverter);
