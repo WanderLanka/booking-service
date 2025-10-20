@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 class PaymentAdapter {
   constructor() {
-    this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3006';
+    this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3004';
     this.timeout = 15000; // Longer timeout for payment processing
   }
 
@@ -197,6 +197,31 @@ class PaymentAdapter {
         valid: false,
         message: error.response?.data?.message || 'Payment method validation failed'
       };
+    }
+  }
+
+  async createPaymentRecord(record) {
+    try {
+      try {
+        logger.info('📤 Sending payment record to payment-service', {
+          url: `${this.baseURL}/internal/payments`,
+          preview: {
+            userId: record.userId,
+            paymentId: record.paymentId,
+            amount: record.amount,
+            currency: record.currency,
+            serviceType: record.serviceType,
+            serviceId: record.serviceId
+          }
+        });
+      } catch {}
+      const response = await axios.post(`${this.baseURL}/internal/payments`, record, {
+        timeout: this.timeout,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to store payment record');
     }
   }
 }

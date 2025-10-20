@@ -1,5 +1,6 @@
 const AccommodationAdapter = require('./AccommodationAdapter');
 const PaymentAdapter = require('./PaymentAdapter');
+const TransportationAdapter = require('./TransportationAdapter');
 
 class AdapterRegistry {
   constructor() {
@@ -11,6 +12,7 @@ class AdapterRegistry {
     // Register all service adapters
     this.adapters.set('accommodation', new AccommodationAdapter());
     this.adapters.set('payment', new PaymentAdapter());
+    this.adapters.set('transportation', new TransportationAdapter());
     
     // Future adapters can be added here:
     // this.adapters.set('transportation', new TransportationAdapter());
@@ -45,6 +47,13 @@ class AdapterRegistry {
    */
   getPaymentAdapter() {
     return this.getAdapter('payment');
+  }
+
+  /**
+   * Get transportation service adapter
+   */
+  getTransportationAdapter() {
+    return this.getAdapter('transportation');
   }
 
   /**

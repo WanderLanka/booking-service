@@ -119,6 +119,25 @@ class EnhancedBookingService {
         throw new Error('User ID is required but not provided');
       }
 
+      // Resolve service provider if missing
+      let resolvedProvider = bookingData.serviceProvider || 'Unknown Provider';
+      
+      console.log('🔍 Service provider resolution:', {
+        serviceType: bookingData.serviceType,
+        serviceProvider: bookingData.serviceProvider,
+        resolvedProvider,
+        hasServiceProvider: !!bookingData.serviceProvider
+      });
+      
+      try {
+        if (!bookingData.serviceProvider && bookingData.serviceType === 'accommodation') {
+          const acc = await this.accommodationAdapter.fetchAccommodationPublic(bookingData.serviceId);
+          if (acc && acc.userId) {
+            resolvedProvider = acc.userId;
+          }
+        }
+      } catch (_) { /* non-fatal */ }
+
       // Generate confirmation number
       const confirmationNumber = Booking.generateConfirmationNumber();
       
@@ -129,7 +148,7 @@ class EnhancedBookingService {
         serviceType: bookingData.serviceType,
         serviceId: bookingData.serviceId,
         serviceName: bookingData.serviceName,
-        serviceProvider: bookingData.serviceProvider || 'Unknown Provider',
+        serviceProvider: resolvedProvider,
         status: 'pending',
         totalAmount: bookingData.totalAmount,
         currency: bookingData.bookingDetails?.currency || 'LKR',
@@ -145,7 +164,8 @@ class EnhancedBookingService {
             rooms: bookingData.bookingDetails.rooms,
             adults: bookingData.bookingDetails.adults,
             children: bookingData.bookingDetails.children || 0,
-            nights: bookingData.bookingDetails.nights
+            nights: bookingData.bookingDetails.nights,
+            roomBreakdown: bookingData.bookingDetails.roomBreakdown
           }),
           
           // Transportation specific fields
@@ -228,21 +248,33 @@ class EnhancedBookingService {
    */
   async createTemporaryReservation(bookingData, bookingId) {
     try {
-      // Create temporary reservation directly (without availability check)
-      const reservation = await this.accommodationAdapter.createTemporaryReservation({
-        accommodationId: bookingData.serviceId,
-        checkInDate: bookingData.bookingDetails.checkInDate,
-        checkOutDate: bookingData.bookingDetails.checkOutDate,
-        rooms: bookingData.bookingDetails.rooms,
-        adults: bookingData.bookingDetails.adults,
-        children: bookingData.bookingDetails.children,
-        bookingId
-      });
+      // For accommodation, call accommodation adapter; otherwise create a mock reservation
+      if (bookingData.serviceType === 'accommodation') {
+        const reservation = await this.accommodationAdapter.createTemporaryReservation({
+          accommodationId: bookingData.serviceId,
+          checkInDate: bookingData.bookingDetails.checkInDate,
+          checkOutDate: bookingData.bookingDetails.checkOutDate,
+          rooms: bookingData.bookingDetails.rooms,
+          adults: bookingData.bookingDetails.adults,
+          children: bookingData.bookingDetails.children,
+          bookingId
+        });
 
-      logger.info('✅ Temporary reservation created', { 
-        reservationId: reservation.reservationId 
-      });
-
+        logger.info('✅ Temporary reservation created', { 
+          reservationId: reservation.reservationId 
+        });
+        return reservation;
+      }
+      // Non-accommodation placeholder reservation
+      const mockReservationId = `TEMP_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const reservation = {
+        success: true,
+        reservationId: mockReservationId,
+        tempReservationId: mockReservationId,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        status: 'temporary',
+      };
+      logger.info('✅ Mock reservation created for non-accommodation service', { reservationId: mockReservationId });
       return reservation;
     } catch (error) {
       logger.error('❌ Temporary reservation failed:', error.message);
