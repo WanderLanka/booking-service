@@ -681,6 +681,99 @@ class EnhancedBookingService {
       throw error;
     }
   }
+
+  /**
+   * Get all bookings for a specific authenticated user
+   */
+  async getUserBookings(userId, userEmail) {
+    try {
+      logger.info('📋 Getting user bookings for authenticated user', { userId, userEmail });
+
+      // Security: Ensure at least one user identifier is provided
+      if (!userId && !userEmail) {
+        logger.warn('❌ No user criteria provided for getUserBookings');
+        return {
+          success: true,
+          message: 'No user criteria provided',
+          data: []
+        };
+      }
+
+      // Build secure query filter - only for the authenticated user
+      const filter = {};
+      
+      // Primary filter: by userId (most secure)
+      if (userId) {
+        filter.userId = userId;
+        logger.info('🔒 Filtering bookings by userId:', userId);
+      }
+      
+      // Secondary filter: by email (if userId not available)
+      if (userEmail && !userId) {
+        filter['contactInfo.email'] = userEmail;
+        logger.info('🔒 Filtering bookings by email:', userEmail);
+      }
+
+      // Additional security: Ensure we're not querying all bookings
+      if (Object.keys(filter).length === 0) {
+        logger.error('❌ No valid filter criteria - potential security issue');
+        throw new Error('No valid user filter criteria provided');
+      }
+
+      logger.info('🔍 Database query filter:', filter);
+
+      // Find bookings ONLY for the authenticated user
+      const bookings = await Booking.find(filter)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      logger.info(`📋 Found ${bookings.length} bookings for authenticated user`, { 
+        userId, 
+        userEmail,
+        filterUsed: Object.keys(filter)
+      });
+
+      // Transform bookings to match expected format
+      const transformedBookings = bookings.map(booking => ({
+        _id: booking._id,
+        id: booking.bookingId,
+        serviceType: booking.serviceType,
+        serviceName: booking.serviceName,
+        serviceProvider: booking.serviceProvider,
+        status: booking.status,
+        totalAmount: booking.totalAmount,
+        currency: booking.currency,
+        bookingDetails: booking.getServiceSpecificDetails ? booking.getServiceSpecificDetails() : booking.bookingDetails,
+        contactInfo: booking.contactInfo,
+        createdAt: booking.createdAt,
+        updatedAt: booking.updatedAt,
+        confirmationNumber: booking.confirmationNumber,
+        image: booking.image || '/api/placeholder/300/200'
+      }));
+
+      // Security log: Confirm we only returned user's own bookings
+      logger.info('✅ User bookings retrieved securely', {
+        userId,
+        userEmail,
+        bookingCount: transformedBookings.length,
+        bookingIds: transformedBookings.map(b => b.id)
+      });
+
+      return {
+        success: true,
+        message: 'User bookings retrieved successfully',
+        data: transformedBookings
+      };
+
+    } catch (error) {
+      logger.error('❌ Failed to get user bookings:', {
+        error: error.message,
+        userId,
+        userEmail
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = EnhancedBookingService;
