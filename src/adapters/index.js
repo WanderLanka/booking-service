@@ -1,6 +1,7 @@
 const AccommodationAdapter = require('./AccommodationAdapter');
 const PaymentAdapter = require('./PaymentAdapter');
 const TransportationAdapter = require('./TransportationAdapter');
+const ItineraryAdapter = require('./ItineraryAdapter');
 
 class AdapterRegistry {
   constructor() {
@@ -13,9 +14,9 @@ class AdapterRegistry {
     this.adapters.set('accommodation', new AccommodationAdapter());
     this.adapters.set('payment', new PaymentAdapter());
     this.adapters.set('transportation', new TransportationAdapter());
+    this.adapters.set('itinerary', new ItineraryAdapter());
     
     // Future adapters can be added here:
-    // this.adapters.set('transportation', new TransportationAdapter());
     // this.adapters.set('guide', new GuideAdapter());
     // this.adapters.set('notification', new NotificationAdapter());
   }
@@ -54,6 +55,14 @@ class AdapterRegistry {
    */
   getTransportationAdapter() {
     return this.getAdapter('transportation');
+  }
+
+  /**
+   * Get itinerary service adapter
+   * @returns {ItineraryAdapter} Itinerary adapter instance
+   */
+  getItineraryAdapter() {
+    return this.getAdapter('itinerary');
   }
 
   /**

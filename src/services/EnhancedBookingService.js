@@ -421,6 +421,90 @@ class EnhancedBookingService {
 
       await booking.save();
 
+      // Create payment record in payment service
+      try {
+        const paymentAdapter = require('../adapters').getPaymentAdapter();
+        
+        // Map service types to match Payment model
+        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' : 
+                                 booking.serviceType === 'accommodation' ? 'accommodation' : 
+                                 booking.serviceType === 'guide' ? 'tour_guide' : 'accommodation';
+        
+        // Prepare provider information
+        const providers = {
+          accommodation: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          },
+          transport: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          },
+          guide: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          }
+        };
+        
+        // Prepare amounts breakdown
+        const amounts = {
+          accommodation: booking.serviceType === 'accommodation' ? booking.totalAmount : 0,
+          transport: booking.serviceType === 'transportation' ? booking.totalAmount : 0,
+          guide: booking.serviceType === 'guide' ? booking.totalAmount : 0,
+          total: booking.totalAmount
+        };
+        
+        const paymentRecord = {
+          userId: booking.userId,
+          paymentId: mockPayment.transactionId,
+          amount: booking.totalAmount,
+          currency: booking.currency || 'LKR',
+          paymentMethod: 'mock_success',
+          status: 'completed',
+          serviceType: paymentServiceType,
+          serviceId: booking.serviceId,
+          description: `${booking.serviceType} booking payment`,
+          customerInfo: {
+            name: `${booking.contactInfo?.firstName || 'Guest'} ${booking.contactInfo?.lastName || ''}`.trim(),
+            email: booking.contactInfo?.email || 'guest@example.com',
+            phone: booking.contactInfo?.phone || 'N/A'
+          },
+          paymentDetails: {
+            transactionId: mockPayment.transactionId,
+            gatewayResponse: {
+              source: 'booking-service',
+              bookingId: booking.bookingId,
+              serviceType: booking.serviceType
+            },
+            gatewayName: 'mock',
+            processedAt: new Date()
+          },
+          providers,
+          amounts,
+          metadata: { 
+            source: 'booking-service', 
+            bookingId: booking.bookingId,
+            serviceType: booking.serviceType,
+            serviceProvider: booking.serviceProvider
+          }
+        };
+        
+        console.log('💳 Creating payment record for individual booking:', {
+          userId: paymentRecord.userId,
+          paymentId: paymentRecord.paymentId,
+          amount: paymentRecord.amount,
+          serviceType: paymentRecord.serviceType,
+          serviceId: paymentRecord.serviceId
+        });
+        
+        const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
+        console.log('✅ Payment record created successfully:', paymentResult);
+        
+      } catch (paymentError) {
+        console.error('❌ Failed to create payment record:', paymentError);
+        // Don't fail the booking process if payment record creation fails
+      }
+
       logger.info('✅ Booking finalized successfully (without payment)', { 
         bookingId,
         confirmationNumber: booking.confirmationNumber,
@@ -468,6 +552,90 @@ class EnhancedBookingService {
       );
 
       await booking.save();
+
+      // Create payment record in payment service
+      try {
+        const paymentAdapter = require('../adapters').getPaymentAdapter();
+        
+        // Map service types to match Payment model
+        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' : 
+                                 booking.serviceType === 'accommodation' ? 'accommodation' : 
+                                 booking.serviceType === 'guide' ? 'tour_guide' : 'accommodation';
+        
+        // Prepare provider information
+        const providers = {
+          accommodation: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          },
+          transport: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          },
+          guide: { 
+            providerId: booking.serviceProvider || '', 
+            providerName: booking.serviceProvider || 'Unknown Provider' 
+          }
+        };
+        
+        // Prepare amounts breakdown
+        const amounts = {
+          accommodation: booking.serviceType === 'accommodation' ? booking.totalAmount : 0,
+          transport: booking.serviceType === 'transportation' ? booking.totalAmount : 0,
+          guide: booking.serviceType === 'guide' ? booking.totalAmount : 0,
+          total: booking.totalAmount
+        };
+        
+        const paymentRecord = {
+          userId: booking.userId,
+          paymentId: payment.transactionId,
+          amount: booking.totalAmount,
+          currency: booking.currency || 'LKR',
+          paymentMethod: 'stripe_checkout',
+          status: 'completed',
+          serviceType: paymentServiceType,
+          serviceId: booking.serviceId,
+          description: `${booking.serviceType} booking payment`,
+          customerInfo: {
+            name: `${booking.contactInfo?.firstName || 'Guest'} ${booking.contactInfo?.lastName || ''}`.trim(),
+            email: booking.contactInfo?.email || 'guest@example.com',
+            phone: booking.contactInfo?.phone || 'N/A'
+          },
+          paymentDetails: {
+            transactionId: payment.transactionId,
+            gatewayResponse: {
+              source: 'booking-service',
+              bookingId: booking.bookingId,
+              serviceType: booking.serviceType
+            },
+            gatewayName: 'stripe',
+            processedAt: new Date()
+          },
+          providers,
+          amounts,
+          metadata: { 
+            source: 'booking-service', 
+            bookingId: booking.bookingId,
+            serviceType: booking.serviceType,
+            serviceProvider: booking.serviceProvider
+          }
+        };
+        
+        console.log('💳 Creating payment record for real payment:', {
+          userId: paymentRecord.userId,
+          paymentId: paymentRecord.paymentId,
+          amount: paymentRecord.amount,
+          serviceType: paymentRecord.serviceType,
+          serviceId: paymentRecord.serviceId
+        });
+        
+        const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
+        console.log('✅ Payment record created successfully:', paymentResult);
+        
+      } catch (paymentError) {
+        console.error('❌ Failed to create payment record:', paymentError);
+        // Don't fail the booking process if payment record creation fails
+      }
 
       logger.info('✅ Booking finalized successfully', { 
         bookingId,

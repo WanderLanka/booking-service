@@ -337,4 +337,175 @@ router.get('/provider/bookings', async (req, res) => {
   }
 });
 
+/**
+ * GET /userBookings - Get all bookings for the logged-in user
+ * Returns bookings filtered by userId with pagination and sorting options
+ */
+router.get('/userBookings', async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
+    // Query parameters for pagination and filtering
+    const {
+      page = 1,
+      limit = 10,
+      serviceType,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build filter object
+    const filter = { userId };
+    
+    if (serviceType) {
+      filter.serviceType = serviceType;
+    }
+    
+    if (status) {
+      filter.status = status;
+    }
+
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination
+    const bookings = await Booking.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Get total count for pagination info
+    const totalCount = await Booking.countDocuments(filter);
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+    // Transform bookings to include service-specific details
+    const transformedBookings = bookings.map(booking => {
+      const bookingObj = booking.toObject ? booking.toObject() : booking;
+      
+      // Determine the primary date based on service type
+      let primaryDate = null;
+      if (bookingObj.serviceType === 'accommodation' && bookingObj.bookingDetails.checkInDate) {
+        primaryDate = new Date(bookingObj.bookingDetails.checkInDate).toISOString().split('T')[0];
+      } else if (bookingObj.serviceType === 'transportation' && bookingObj.bookingDetails.startDate) {
+        primaryDate = new Date(bookingObj.bookingDetails.startDate).toISOString().split('T')[0];
+      } else if (bookingObj.serviceType === 'guide' && bookingObj.bookingDetails.tourDate) {
+        primaryDate = new Date(bookingObj.bookingDetails.tourDate).toISOString().split('T')[0];
+      }
+      
+      return {
+        ...bookingObj,
+        // Add primary date field for easy access
+        date: primaryDate,
+        // Ensure totalAmount is properly formatted
+        totalAmount: bookingObj.totalAmount || 0,
+        currency: bookingObj.currency || 'LKR',
+        serviceSpecificDetails: getServiceSpecificDetails(bookingObj),
+        // Format dates for frontend
+        bookingDetails: {
+          ...bookingObj.bookingDetails,
+          checkInDate: bookingObj.bookingDetails.checkInDate ? 
+            new Date(bookingObj.bookingDetails.checkInDate).toISOString().split('T')[0] : null,
+          checkOutDate: bookingObj.bookingDetails.checkOutDate ? 
+            new Date(bookingObj.bookingDetails.checkOutDate).toISOString().split('T')[0] : null,
+          startDate: bookingObj.bookingDetails.startDate ? 
+            new Date(bookingObj.bookingDetails.startDate).toISOString().split('T')[0] : null,
+          tourDate: bookingObj.bookingDetails.tourDate ? 
+            new Date(bookingObj.bookingDetails.tourDate).toISOString().split('T')[0] : null
+        },
+        createdAt: new Date(bookingObj.createdAt).toISOString(),
+        updatedAt: new Date(bookingObj.updatedAt).toISOString()
+      };
+    });
+
+    res.json({
+      success: true,
+      data: transformedBookings,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalCount,
+        limit: parseInt(limit),
+        hasNextPage: parseInt(page) < totalPages,
+        hasPrevPage: parseInt(page) > 1
+      },
+      filters: {
+        serviceType: serviceType || 'all',
+        status: status || 'all'
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error fetching user bookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user bookings',
+      error: error.message
+    });
+  }
+});
+
+// Helper function to get service-specific details
+function getServiceSpecificDetails(booking) {
+  const details = {
+    // Common details
+    serviceType: booking.serviceType,
+    serviceName: booking.serviceName,
+    serviceProvider: booking.serviceProvider,
+    totalAmount: booking.totalAmount || 0,
+    currency: booking.currency || 'LKR',
+    status: booking.status
+  };
+  
+  if (booking.serviceType === 'accommodation') {
+    details.checkInDate = booking.bookingDetails.checkInDate ? 
+      new Date(booking.bookingDetails.checkInDate).toISOString().split('T')[0] : null;
+    details.checkOutDate = booking.bookingDetails.checkOutDate ? 
+      new Date(booking.bookingDetails.checkOutDate).toISOString().split('T')[0] : null;
+    details.rooms = booking.bookingDetails.rooms;
+    details.adults = booking.bookingDetails.adults;
+    details.children = booking.bookingDetails.children;
+    details.nights = booking.bookingDetails.nights;
+    details.roomBreakdown = booking.bookingDetails.roomBreakdown;
+    // Use check-in date as the primary date for accommodation
+    details.date = details.checkInDate;
+  } else if (booking.serviceType === 'transportation') {
+    details.startDate = booking.bookingDetails.startDate ? 
+      new Date(booking.bookingDetails.startDate).toISOString().split('T')[0] : null;
+    details.days = booking.bookingDetails.days;
+    details.passengers = booking.bookingDetails.passengers;
+    details.pickupLocation = booking.bookingDetails.pickupLocation;
+    details.dropoffLocation = booking.bookingDetails.dropoffLocation;
+    details.estimatedDistance = booking.bookingDetails.estimatedDistance;
+    details.pricingPerKm = booking.bookingDetails.pricingPerKm;
+    details.vehicleType = booking.bookingDetails.vehicleType;
+    details.departureTime = booking.bookingDetails.departureTime;
+    // Use start date as the primary date for transportation
+    details.date = details.startDate;
+  } else if (booking.serviceType === 'guide') {
+    details.tourDate = booking.bookingDetails.tourDate ? 
+      new Date(booking.bookingDetails.tourDate).toISOString().split('T')[0] : null;
+    details.duration = booking.bookingDetails.duration;
+    details.groupSize = booking.bookingDetails.groupSize;
+    details.specialRequests = booking.bookingDetails.specialRequests;
+    details.guideLanguages = booking.bookingDetails.guideLanguages;
+    // Use tour date as the primary date for guide
+    details.date = details.tourDate;
+  }
+  
+  return details;
+}
+
 module.exports = router;

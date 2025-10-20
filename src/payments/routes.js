@@ -56,11 +56,20 @@ function toEnhancedPayloadFromSimplified(body, user) {
     const subtotal = pricingPerKm * estDistance * days;
     const totalAmount = subtotal + serviceFee;
 
+    // If pricing data is missing, use a default amount based on days
+    const finalTotalAmount = totalAmount > serviceFee ? totalAmount : (days * 1000 + serviceFee);
+
     console.log('🚗 Transport booking transformation:', {
       transportId,
       transportProviderId: body.transportProviderId,
       hasTransportProviderId: !!body.transportProviderId,
-      bodyKeys: Object.keys(body)
+      bodyKeys: Object.keys(body),
+      pricingPerKm,
+      estDistance,
+      days,
+      subtotal,
+      totalAmount,
+      finalTotalAmount
     });
 
     return {
@@ -68,7 +77,7 @@ function toEnhancedPayloadFromSimplified(body, user) {
       serviceId: transportId,
       serviceProvider: body.transportProviderId || 'Unknown Provider', // Include transport provider ID
       serviceName: 'Transportation',
-      totalAmount,
+      totalAmount: finalTotalAmount,
       bookingDetails: {
         currency: 'LKR',
         startDate: body.startDate,
@@ -103,24 +112,12 @@ router.post('/create-session', authMiddleware, async (req, res, next) => {
   try {
     if (!stripe) return res.status(500).json({ success: false, message: 'Stripe not configured' });
 
-    console.log('🎯 Payment create-session received:', {
-      serviceType: req.body.serviceType,
-      transportId: req.body.transportId,
-      transportProviderId: req.body.transportProviderId,
-      bodyKeys: Object.keys(req.body)
-    });
-
     const enhanced = toEnhancedPayloadFromSimplified(req.body, req.user);
-    
-    console.log('🔄 Enhanced payload created:', {
-      serviceType: enhanced.serviceType,
-      serviceProvider: enhanced.serviceProvider,
-      serviceId: enhanced.serviceId
-    });
     const amountLkr = Math.round((enhanced.totalAmount || 0) * 100);
 
     const rb = (req.body.selectedRooms || []).map(r => ({ t: r.roomType || r.type, q: parseInt(r.quantity)||0 }));
     const metadata = { serviceType: enhanced.serviceType, serviceId: enhanced.serviceId, userId: enhanced.userId || '', email: enhanced.contactInfo.email, phone: enhanced.contactInfo.phone };
+    
     if (enhanced.serviceType === 'accommodation') {
       Object.assign(metadata, {
         checkInDate: enhanced.bookingDetails.checkInDate,
@@ -176,6 +173,7 @@ router.get('/success', async (req, res, next) => {
     if (!sessionId) return res.status(400).json({ success: false, message: 'Missing session_id' });
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    
     if (session.payment_status !== 'paid') {
       return res.status(402).json({ success: false, message: 'Payment not completed' });
     }
@@ -189,6 +187,22 @@ router.get('/success', async (req, res, next) => {
           quantity: parseInt(x.quantity || x.q || 0) || 0
         }))
       : [];
+    
+    // Check if this is a whole-trip payment (accommodationId: 'trip_total')
+    const isWholeTripPayment = md.serviceId === 'trip_total' || md.accommodationId === 'trip_total';
+    
+    if (isWholeTripPayment) {
+      // Handle whole-trip payment by calling itinerary service
+      try {
+        const back = `${process.env.WEB_APP_URL || 'http://localhost:5173'}/user/booking-payment?bookingStatus=success&sessionId=${sessionId}`;
+        return res.redirect(back);
+      } catch (err) {
+        const back = `${process.env.WEB_APP_URL || 'http://localhost:5173'}/user/booking-payment?bookingStatus=failed`;
+        return res.redirect(back);
+      }
+    }
+    
+    // Continue with individual booking logic for accommodation/transportation
     const isAccommodation = (md.serviceType || 'accommodation') === 'accommodation';
     const enhanced = isAccommodation ? {
       serviceType: 'accommodation',
@@ -268,17 +282,49 @@ router.get('/success', async (req, res, next) => {
       // Persist payment record in payment-service
       try {
         const paymentAdapter = require('../adapters').getPaymentAdapter();
+        
+        // Map service types to match Payment model
+        const paymentServiceType = isAccommodation ? 'accommodation' : 'transport';
+        
+        // Prepare provider information
+        const providers = {
+          accommodation: { 
+            providerId: enhanced.serviceProvider || '', 
+            providerName: enhanced.serviceProvider || 'Unknown Provider' 
+          },
+          transport: { 
+            providerId: enhanced.serviceProvider || '', 
+            providerName: enhanced.serviceProvider || 'Unknown Provider' 
+          },
+          guide: { 
+            providerId: '', 
+            providerName: '' 
+          }
+        };
+        
+        // Prepare amounts breakdown
         const amounts = isAccommodation ?
-          { accommodation: enhanced.totalAmount || 0, transport: 0, guide: 0, total: enhanced.totalAmount || 0 } :
-          { accommodation: 0, transport: enhanced.totalAmount || 0, guide: 0, total: enhanced.totalAmount || 0 };
-        await paymentAdapter.createPaymentRecord({
+          { 
+            accommodation: enhanced.totalAmount || 0, 
+            transport: 0, 
+            guide: 0, 
+            total: enhanced.totalAmount || 0 
+          } :
+          { 
+            accommodation: 0, 
+            transport: enhanced.totalAmount || 0, 
+            guide: 0, 
+            total: enhanced.totalAmount || 0 
+          };
+        
+        const paymentRecord = {
           userId: enhanced.userId || md.userId || 'unknown',
           paymentId: enhanced.paymentDetails?.transactionId || `PAY_${Date.now()}`,
           amount: enhanced.totalAmount || 0,
           currency: enhanced.bookingDetails?.currency || 'LKR',
           paymentMethod: 'stripe_checkout',
           status: 'completed',
-          serviceType: isAccommodation ? 'accommodation' : 'transport',
+          serviceType: paymentServiceType,
           serviceId: enhanced.serviceId,
           description: isAccommodation ? 'Accommodation booking payment' : 'Transportation booking payment',
           customerInfo: {
@@ -288,19 +334,41 @@ router.get('/success', async (req, res, next) => {
           },
           paymentDetails: {
             transactionId: enhanced.paymentDetails?.transactionId,
-            gatewayResponse: {},
+            gatewayResponse: {
+              sessionId: session.id,
+              paymentIntent: session.payment_intent,
+              amountTotal: session.amount_total,
+              currency: session.currency
+            },
             gatewayName: 'stripe',
             processedAt: new Date()
           },
-          providers: {
-            accommodation: { providerId: '', providerName: isAccommodation ? (enhanced.serviceName || 'Accommodation') : '' },
-            transport: { providerId: '', providerName: isAccommodation ? '' : (enhanced.serviceName || 'Transportation') },
-            guide: { providerId: '', providerName: '' }
-          },
+          providers,
           amounts,
-          metadata: { source: 'booking-service', bookingId: result?.data?.bookingId }
+          metadata: { 
+            source: 'booking-service', 
+            bookingId: result?.data?.bookingId,
+            sessionId: session.id,
+            serviceType: enhanced.serviceType
+          }
+        };
+        
+        console.log('💳 Creating payment record:', {
+          userId: paymentRecord.userId,
+          paymentId: paymentRecord.paymentId,
+          amount: paymentRecord.amount,
+          serviceType: paymentRecord.serviceType,
+          serviceId: paymentRecord.serviceId
         });
-      } catch (e) { /* swallow payment record errors to not block redirect */ }
+        
+        const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
+        console.log('✅ Payment record created successfully:', paymentResult);
+        
+      } catch (paymentError) {
+        console.error('❌ Failed to create payment record:', paymentError);
+        // Don't fail the entire booking process if payment record creation fails
+        // The booking is already created, so we just log the error
+      }
 
       // For transportation, mark vehicle unavailable (booked)
       if (!isAccommodation) {
