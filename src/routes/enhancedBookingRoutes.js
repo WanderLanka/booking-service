@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const EnhancedBookingService = require('../services/EnhancedBookingService');
 const authMiddleware = require('../middleware/auth');
 const logger = require('../utils/logger');
+const Booking = require('../models/Booking');
 
 const router = express.Router();
 const enhancedBookingService = new EnhancedBookingService();
@@ -47,21 +48,60 @@ const validateEnhancedBookingRequest = [
  * 4. Confirms reservation
  * 5. Finalizes booking
  */
-router.post('/enhanced', validateEnhancedBookingRequest, async (req, res) => {
+router.post('/enhanced', async (req, res, next) => {
   console.log('🎯 POST /enhanced endpoint reached - Enhanced booking flow');
   console.log('Enhanced booking request details:', {
     method: req.method,
     url: req.url,
     user: req.user ? req.user.userId : 'No user attached',
-    body: {
-      serviceType: req.body.serviceType,
-      serviceId: req.body.serviceId,
-      serviceName: req.body.serviceName,
-      totalAmount: req.body.totalAmount
-    }
+    bodyKeys: Object.keys(req.body || {})
   });
 
   try {
+    // Transform simplified accommodation payload (from AccommodationDetails.jsx) to enhanced shape
+    if (!req.body.serviceType && req.body.accommodationId && req.body.checkInDate && req.body.checkOutDate) {
+      const { accommodationId, checkInDate, checkOutDate, selectedRooms = [], guestDetails = {} } = req.body;
+      const nights = Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000*60*60*24)));
+      const roomsCount = selectedRooms.reduce((t, r) => t + (parseInt(r.quantity) || 0), 0);
+      const subtotal = selectedRooms.reduce((t, r) => t + (Number(r.pricePerNight) * (parseInt(r.quantity)||0) * nights), 0);
+      const serviceFee = 25;
+      const totalAmount = subtotal + serviceFee;
+
+      req.body = {
+        serviceType: 'accommodation',
+        serviceId: accommodationId,
+        serviceName: 'Accommodation',
+        totalAmount,
+        bookingDetails: {
+          currency: 'LKR',
+          checkInDate,
+          checkOutDate,
+          rooms: roomsCount,
+          adults: Math.max(1, roomsCount * 2),
+          children: 0,
+          nights,
+          roomBreakdown: selectedRooms
+        },
+        // Minimal payment details (not used when payment is skipped)
+        paymentDetails: {
+          cardNumber: '4111111111111111',
+          expiryDate: '12/30',
+          cvv: '123',
+          cardholderName: `${guestDetails.firstName || 'Guest'} ${guestDetails.lastName || ''}`.trim()
+        },
+        contactInfo: {
+          email: guestDetails.email || 'guest@example.com',
+          phone: guestDetails.phone || 'N/A',
+          emergencyContact: '',
+          firstName: guestDetails.firstName || 'Guest',
+          lastName: guestDetails.lastName || ''
+        }
+      };
+      console.log('🔄 Transformed simplified payload to enhanced shape');
+    }
+
+    // Now run validation on the (possibly transformed) body
+    await Promise.all(validateEnhancedBookingRequest.map(v => v.run(req)));
     // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -223,99 +263,77 @@ router.post('/enhanced/:bookingId/cancel', async (req, res) => {
   }
 });
 
-/**
- * GET /test - Simple test endpoint to verify service is working
- */
-router.get('/test', (req, res) => {
-  console.log('🎯 GET /test endpoint reached');
-  res.json({
-    success: true,
-    message: 'Enhanced booking service is working',
-    timestamp: new Date().toISOString()
-  });
-});
-
-/**
- * GET /userBookings - Get all bookings for the authenticated user
- */
-router.get('/userBookings', async (req, res) => {
+// Provider bookings listing
+router.get('/provider/bookings', async (req, res) => {
   try {
-    console.log('🎯 GET /userBookings endpoint reached');
-    console.log('Request details:', {
-      method: req.method,
-      url: req.url,
-      user: req.user ? {
-        userId: req.user.userId,
-        email: req.user.email,
-        role: req.user.role
-      } : 'No user attached',
-      headers: {
-        authorization: req.headers.authorization ? 'Present' : 'Missing'
-      }
+    console.log('🔍 Provider bookings request:', {
+      query: req.query,
+      user: req.user,
+      headers: req.headers
     });
 
-    // Extract user information from JWT token
-    const userId = req.user?.userId;
-    const userEmail = req.user?.email;
-    const userRole = req.user?.role;
+    const { serviceType } = req.query;
+    const providerId = req.user?.username || req.user?.userId;
     
-    logger.info('📋 Getting user bookings for authenticated user', { 
-      userId, 
-      userEmail, 
-      userRole,
-      timestamp: new Date().toISOString()
-    });
-
-    // Validate that user information exists in token
-    if (!userId && !userEmail) {
-      console.log('❌ No user information found in JWT token');
-      logger.warn('❌ Unauthorized access attempt - no user info in token');
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'No user information found in token'
-      });
-    }
-
-    // Additional security: Ensure user is authenticated
-    if (!req.user) {
-      console.log('❌ No user object attached to request');
-      logger.warn('❌ Unauthorized access attempt - no user object');
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'User not authenticated'
-      });
-    }
-
-    console.log('✅ Authenticated user found, fetching bookings for:', { userId, userEmail });
-    
-    // Get bookings ONLY for the authenticated user
-    const result = await enhancedBookingService.getUserBookings(userId, userEmail);
-
-    console.log('✅ getUserBookings service completed successfully for user:', { userId, userEmail });
-    logger.info('✅ User bookings retrieved successfully', { 
-      userId, 
-      userEmail, 
-      bookingCount: result.data?.length || 0 
-    });
-    
-    res.json(result);
-
-  } catch (error) {
-    console.error('❌ Failed to get user bookings:', error);
-    logger.error('❌ Failed to get user bookings:', {
-      error: error.message,
-      stack: error.stack,
+    console.log('🔍 Provider ID extraction:', {
+      username: req.user?.username,
       userId: req.user?.userId,
-      userEmail: req.user?.email
+      extractedProviderId: providerId
     });
 
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get user bookings',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    if (!providerId) {
+      console.log('❌ No provider ID found');
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // First, let's see all bookings to understand the data structure
+    const allBookings = await Booking.find({}).sort({ createdAt: -1 }).limit(5);
+    console.log('🔍 Sample bookings in database:', {
+      count: allBookings.length,
+      bookings: allBookings.map(b => ({
+        id: b._id,
+        serviceType: b.serviceType,
+        serviceProvider: b.serviceProvider,
+        status: b.status,
+        userId: b.userId
+      }))
     });
+
+    // Filter bookings by service type and provider
+    let filter = {};
+    if (serviceType) {
+      filter.serviceType = serviceType;
+    } else {
+      filter.serviceType = 'accommodation'; // Default to accommodation
+    }
+
+    // For transport bookings, filter by serviceProvider matching the logged-in user
+    if (serviceType === 'transportation') {
+      filter.serviceProvider = providerId;
+      console.log('🔍 Transport bookings filter:', filter);
+    } else if (serviceType === 'accommodation') {
+      filter.serviceProvider = providerId;
+      console.log('🔍 Accommodation bookings filter:', filter);
+    }
+
+    console.log('🔍 Final database filter:', filter);
+
+    const bookings = await Booking.find(filter).sort({ createdAt: -1 });
+    
+    console.log('🔍 Found bookings:', {
+      count: bookings.length,
+      bookings: bookings.map(b => ({
+        id: b._id,
+        serviceType: b.serviceType,
+        serviceProvider: b.serviceProvider,
+        status: b.status
+      }))
+    });
+
+    return res.json({ success: true, data: bookings, count: bookings.length });
+  } catch (err) {
+    console.error('❌ Provider bookings error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch provider bookings' });
   }
 });
 

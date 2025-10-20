@@ -11,6 +11,8 @@ const { errorConverter, errorHandler, notFound } = require('./src/middleware/err
 const tourPackageBookingRoutes = require('./src/tourpackage_booking/routes');
 const paymentsRoutes = require('./src/payments/routes');
 const enhancedBookingRoutes = require('./src/routes/enhancedBookingRoutes');
+// const availabilityRoutes = require('./src/routes/availabilityRoutes');
+const { startDailyJobs } = require('./src/services/scheduler');
 
 const app = express();
 
@@ -31,6 +33,8 @@ app.use('/public', express.static(path.join(process.cwd(), 'public')));
 // Mount routes
 app.use('/tourpackage_booking', tourPackageBookingRoutes);
 app.use('/payments', paymentsRoutes);
+// app.use('/availability', availabilityRoutes);
+// app.use('/booking/availability', availabilityRoutes);
 // Enhanced booking routes - mounted at root to handle API Gateway forwarding
 app.use('/', enhancedBookingRoutes);
 
@@ -40,4 +44,5 @@ app.use(errorHandler);
 
 connectDB().then(() => {
   app.listen(PORT, () => logger.info(`🚀 Booking service listening on port ${PORT}`));
+  try { startDailyJobs(); } catch (e) { logger.warn('Scheduler start failed'); }
 });

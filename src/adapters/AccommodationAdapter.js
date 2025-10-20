@@ -192,6 +192,22 @@ class AccommodationAdapter {
       };
     }
   }
+
+  async adjustAvailability(accommodationId, adjustments, action = 'decrease') {
+    const url = `${this.baseURL}/accommodations/${accommodationId}/room-types/${action}`;
+    const payload = { adjustments };
+    const res = await axios.put(url, payload, {
+      timeout: this.timeout,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return res.data;
+  }
+
+  async fetchAccommodationPublic(accommodationId) {
+    const url = `${this.baseURL}/accommodations/${accommodationId}`;
+    const res = await axios.get(url, { timeout: this.timeout });
+    return res.data?.data || res.data;
+  }
 }
 
 module.exports = AccommodationAdapter;

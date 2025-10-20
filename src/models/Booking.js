@@ -103,6 +103,11 @@ const BookingSchema = new mongoose.Schema({
       type: Number,
       required: function() { return this.serviceType === 'accommodation'; }
     },
+    roomBreakdown: [{
+      roomType: String,
+      quantity: Number,
+      pricePerNight: Number
+    }],
     
     // Transportation specific fields
     startDate: {
