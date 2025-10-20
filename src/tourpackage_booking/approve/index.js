@@ -1,5 +1,6 @@
 const express = require('express');
 const TourPackageBooking = require('../../models/TourPackageBooking');
+const { updateGuideResponseTime } = require('../../services/guideServiceClient');
 
 const router = express.Router();
 
@@ -84,6 +85,16 @@ router.post('/:id', async (req, res, next) => {
         error: 'Booking status has changed. Please refresh and try again.'
       });
     }
+
+    // Fire-and-forget metric update: approximate response time from request to approval
+    try {
+      const now = Date.now();
+      const created = new Date(booking.createdAt).getTime();
+      const responseTimeMs = Math.max(0, now - created);
+      if (booking.guideId) {
+        updateGuideResponseTime(booking.guideId, responseTimeMs).catch(() => {});
+      }
+    } catch {}
 
     res.json({ 
       success: true, 
