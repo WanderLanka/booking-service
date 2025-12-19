@@ -2,7 +2,7 @@ const axios = require('axios');
 
 class ItineraryAdapter {
   constructor() {
-    this.baseURL = process.env.ITINERARY_SERVICE_URL || 'http://localhost:3008';
+  this.baseURL = process.env.ITINERARY_SERVICE_URL || 'http://192.168.8.142:3008';
     this.timeout = 10000; // 10 seconds timeout
   }
 

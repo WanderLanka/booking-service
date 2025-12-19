@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 class PaymentAdapter {
   constructor() {
-    this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3004';
+  this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://192.168.8.142:3004';
     this.timeout = 15000; // Longer timeout for payment processing
   }
 

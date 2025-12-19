@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 class AccommodationAdapter {
   constructor() {
-    this.baseURL = process.env.ACCOMMODATION_SERVICE_URL || 'http://localhost:3003';
+  this.baseURL = process.env.ACCOMMODATION_SERVICE_URL || 'http://192.168.8.142:3003';
     this.timeout = 10000;
   }
 

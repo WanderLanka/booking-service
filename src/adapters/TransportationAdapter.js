@@ -2,7 +2,7 @@ const axios = require('axios');
 
 class TransportationAdapter {
   constructor() {
-    this.baseURL = process.env.TRANSPORT_SERVICE_URL || 'http://localhost:3002';
+  this.baseURL = process.env.TRANSPORT_SERVICE_URL || 'http://192.168.8.142:3002';
     this.timeout = 10000;
   }
 
