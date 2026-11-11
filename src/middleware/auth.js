@@ -1,3 +1,4 @@
+const { verifyAccess } = require('../../security');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 
@@ -29,9 +30,8 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    console.log('🔍 Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyAccess(token, JWT_SECRET);
     console.log('✅ Token verified successfully for enhanced booking:', {
       userId: decoded.userId,
       email: decoded.email,
@@ -44,7 +44,7 @@ const authMiddleware = (req, res, next) => {
 
   } catch (error) {
     console.error('❌ Enhanced booking authentication failed:', error.message);
-    
+
     if (error.name === 'TokenExpiredError') {
       return res.status(403).json({
         error: 'Token has expired',

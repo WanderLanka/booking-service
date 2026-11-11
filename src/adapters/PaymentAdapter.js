@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 class PaymentAdapter {
   constructor() {
-    this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3004';
+    this.baseURL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3006';
     this.timeout = 15000; // Longer timeout for payment processing
   }
 
@@ -80,15 +80,15 @@ class PaymentAdapter {
 
     } catch (error) {
       logger.error('❌ Payment processing failed:', error.message);
-      
+
       if (error.code === 'ECONNREFUSED') {
         throw new Error('Payment service is currently unavailable');
       }
-      
+
       if (error.response?.status === 402) {
         throw new Error('Payment declined: ' + (error.response.data.message || 'Insufficient funds or invalid card'));
       }
-      
+
       throw new Error(error.response?.data?.message || 'Payment processing failed');
     }
   }
@@ -217,7 +217,7 @@ class PaymentAdapter {
       } catch {}
       const response = await axios.post(`${this.baseURL}/internal/payments`, record, {
         timeout: this.timeout,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' }
       });
       return response.data;
     } catch (error) {

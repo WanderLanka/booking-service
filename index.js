@@ -1,3 +1,4 @@
+const { start, installReadiness } = require('./runtime');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -15,6 +16,7 @@ const enhancedBookingRoutes = require('./src/routes/enhancedBookingRoutes');
 const { startDailyJobs } = require('./src/services/scheduler');
 
 const app = express();
+installReadiness(app);
 
 const PORT = process.env.PORT || 3009;
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || '').split(',').filter(Boolean);
@@ -30,6 +32,8 @@ app.get('/health', (req, res) => {
 // Static (if needed later, e.g., invoices)
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
+app.use('/internal', require('./src/routes/internalRoutes'));
+
 // Mount routes
 app.use('/tourpackage_booking', tourPackageBookingRoutes);
 app.use('/payments', paymentsRoutes);
@@ -42,7 +46,12 @@ app.use(notFound);
 app.use(errorConverter);
 app.use(errorHandler);
 
-connectDB().then(() => {
-  app.listen(PORT, () => logger.info(`🚀 Booking service listening on port ${PORT}`));
-  try { startDailyJobs(); } catch (e) { logger.warn('Scheduler start failed'); }
-});
+
+if (require.main === module) {
+  start(app, { connect: connectDB, port: PORT, onStart: startDailyJobs }).catch(error => {
+    console.error('Service startup failed:', error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = app;

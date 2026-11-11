@@ -8,6 +8,7 @@ const router = express.Router();
 // POST /tourpackage_booking/pay/:id
 // In mock flow: create and capture payment, check guide availability, set booking to confirmed
 router.post('/:id', async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production') return res.status(503).json({ success: false, error: 'Mock payments are disabled in production' });
   try {
     const { id } = req.params;
     const booking = await TourPackageBooking.findById(id);
@@ -37,9 +38,9 @@ router.post('/:id', async (req, res, next) => {
         // Guide is unavailable - set status back to pending and notify traveller
         booking.status = 'pending';
         await booking.save();
-        
-        return res.status(409).json({ 
-          success: false, 
+
+        return res.status(409).json({
+          success: false,
           error: 'Guide is not available on the selected dates',
           message: 'The tour guide already has a confirmed booking during your selected dates. Please choose another available date.',
           conflictingDates: {
@@ -80,7 +81,7 @@ router.post('/:id', async (req, res, next) => {
       try {
         // Increment tour package booking count
         await incrementTourPackageBookingCount(booking.tourPackageId, 1);
-        
+
         // Increment guide's total bookings metric and block the date range
         if (booking.guideId) {
           await incrementGuideBookingCount(booking.guideId, 1);

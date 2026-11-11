@@ -7,7 +7,7 @@ const createBookingSchema = Joi.object({
   packageSlug: Joi.string().optional(),
   guideId: Joi.string().optional(),
   startDate: Joi.date().iso().required(),
-  endDate: Joi.date().iso().required(),
+  endDate: Joi.date().iso().min(Joi.ref('startDate')).required(),
   peopleCount: Joi.number().integer().min(1).default(1),
   pricing: Joi.object({
     currency: Joi.string().default('USD'),

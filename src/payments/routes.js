@@ -4,6 +4,15 @@ const { stripe } = require('../services/stripeClient');
 const EnhancedBookingService = require('../services/EnhancedBookingService');
 
 const router = express.Router();
+// These legacy flows still accept client pricing and finalize via mock checkout.
+// Reject before contacting Stripe until authoritative pricing and idempotent
+// payment reconciliation have been implemented and exercised in staging.
+router.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && ['/create-session', '/create-intent'].includes(req.path)) {
+    return res.status(503).json({ success: false, message: 'Paid booking checkout is not enabled for production' });
+  }
+  return next();
+});
 const enhancedBookingService = new EnhancedBookingService();
 
 function toEnhancedPayloadFromSimplified(body, user) {
@@ -117,7 +126,7 @@ router.post('/create-session', authMiddleware, async (req, res, next) => {
 
     const rb = (req.body.selectedRooms || []).map(r => ({ t: r.roomType || r.type, q: parseInt(r.quantity)||0 }));
     const metadata = { serviceType: enhanced.serviceType, serviceId: enhanced.serviceId, userId: enhanced.userId || '', email: enhanced.contactInfo.email, phone: enhanced.contactInfo.phone };
-    
+
     if (enhanced.serviceType === 'accommodation') {
       Object.assign(metadata, {
         checkInDate: enhanced.bookingDetails.checkInDate,
@@ -173,7 +182,7 @@ router.get('/success', async (req, res, next) => {
     if (!sessionId) return res.status(400).json({ success: false, message: 'Missing session_id' });
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    
+
     if (session.payment_status !== 'paid') {
       return res.status(402).json({ success: false, message: 'Payment not completed' });
     }
@@ -187,10 +196,10 @@ router.get('/success', async (req, res, next) => {
           quantity: parseInt(x.quantity || x.q || 0) || 0
         }))
       : [];
-    
+
     // Check if this is a whole-trip payment (accommodationId: 'trip_total')
     const isWholeTripPayment = md.serviceId === 'trip_total' || md.accommodationId === 'trip_total';
-    
+
     if (isWholeTripPayment) {
       // Handle whole-trip payment by calling itinerary service
       try {
@@ -201,7 +210,7 @@ router.get('/success', async (req, res, next) => {
         return res.redirect(back);
       }
     }
-    
+
     // Continue with individual booking logic for accommodation/transportation
     const isAccommodation = (md.serviceType || 'accommodation') === 'accommodation';
     const enhanced = isAccommodation ? {
@@ -282,41 +291,41 @@ router.get('/success', async (req, res, next) => {
       // Persist payment record in payment-service
       try {
         const paymentAdapter = require('../adapters').getPaymentAdapter();
-        
+
         // Map service types to match Payment model
         const paymentServiceType = isAccommodation ? 'accommodation' : 'transport';
-        
+
         // Prepare provider information
         const providers = {
-          accommodation: { 
-            providerId: enhanced.serviceProvider || '', 
-            providerName: enhanced.serviceProvider || 'Unknown Provider' 
+          accommodation: {
+            providerId: enhanced.serviceProvider || '',
+            providerName: enhanced.serviceProvider || 'Unknown Provider'
           },
-          transport: { 
-            providerId: enhanced.serviceProvider || '', 
-            providerName: enhanced.serviceProvider || 'Unknown Provider' 
+          transport: {
+            providerId: enhanced.serviceProvider || '',
+            providerName: enhanced.serviceProvider || 'Unknown Provider'
           },
-          guide: { 
-            providerId: '', 
-            providerName: '' 
+          guide: {
+            providerId: '',
+            providerName: ''
           }
         };
-        
+
         // Prepare amounts breakdown
         const amounts = isAccommodation ?
-          { 
-            accommodation: enhanced.totalAmount || 0, 
-            transport: 0, 
-            guide: 0, 
-            total: enhanced.totalAmount || 0 
+          {
+            accommodation: enhanced.totalAmount || 0,
+            transport: 0,
+            guide: 0,
+            total: enhanced.totalAmount || 0
           } :
-          { 
-            accommodation: 0, 
-            transport: enhanced.totalAmount || 0, 
-            guide: 0, 
-            total: enhanced.totalAmount || 0 
+          {
+            accommodation: 0,
+            transport: enhanced.totalAmount || 0,
+            guide: 0,
+            total: enhanced.totalAmount || 0
           };
-        
+
         const paymentRecord = {
           userId: enhanced.userId || md.userId || 'unknown',
           paymentId: enhanced.paymentDetails?.transactionId || `PAY_${Date.now()}`,
@@ -345,14 +354,14 @@ router.get('/success', async (req, res, next) => {
           },
           providers,
           amounts,
-          metadata: { 
-            source: 'booking-service', 
+          metadata: {
+            source: 'booking-service',
             bookingId: result?.data?.bookingId,
             sessionId: session.id,
             serviceType: enhanced.serviceType
           }
         };
-        
+
         console.log('💳 Creating payment record:', {
           userId: paymentRecord.userId,
           paymentId: paymentRecord.paymentId,
@@ -360,10 +369,10 @@ router.get('/success', async (req, res, next) => {
           serviceType: paymentRecord.serviceType,
           serviceId: paymentRecord.serviceId
         });
-        
+
         const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
         console.log('✅ Payment record created successfully:', paymentResult);
-        
+
       } catch (paymentError) {
         console.error('❌ Failed to create payment record:', paymentError);
         // Don't fail the entire booking process if payment record creation fails
@@ -410,9 +419,9 @@ router.get('/cancel', async (req, res) => {
 router.post('/create-intent', authMiddleware, async (req, res, next) => {
   try {
     if (!stripe) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Stripe not configured' 
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe not configured'
       });
     }
 
@@ -469,17 +478,17 @@ router.post('/create-intent', authMiddleware, async (req, res, next) => {
           message: 'Booking not found'
         });
       }
-      
+
       // Verify booking belongs to user (convert both to strings for comparison)
       const bookingUserId = String(booking.userId);
       const requestUserId = String(req.user?.userId);
-      
+
       console.log('🔍 User verification:', {
         bookingUserId,
         requestUserId,
         match: bookingUserId === requestUserId
       });
-      
+
       if (bookingUserId !== requestUserId) {
         return res.status(403).json({
           success: false,
@@ -576,9 +585,9 @@ router.post('/create-intent', authMiddleware, async (req, res, next) => {
 router.post('/confirm', authMiddleware, async (req, res, next) => {
   try {
     if (!stripe) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Stripe not configured' 
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe not configured'
       });
     }
 
@@ -666,7 +675,7 @@ router.post('/confirm', authMiddleware, async (req, res, next) => {
     // Store payment record in payment-service
     try {
       const paymentAdapter = require('../adapters').getPaymentAdapter();
-      
+
       const paymentRecord = {
         userId: booking.userId || req.user?.userId || 'guest',
         paymentId: paymentIntent.id,
@@ -696,9 +705,9 @@ router.post('/confirm', authMiddleware, async (req, res, next) => {
         providers: {
           accommodation: { providerId: '', providerName: '' },
           transport: { providerId: '', providerName: '' },
-          guide: { 
-            providerId: booking.guideId || '', 
-            providerName: booking.guideId || 'Unknown Guide' 
+          guide: {
+            providerId: booking.guideId || '',
+            providerName: booking.guideId || 'Unknown Guide'
           }
         },
         amounts: {
@@ -737,23 +746,23 @@ router.post('/confirm', authMiddleware, async (req, res, next) => {
 
     // Update guide metrics and block availability
     try {
-      const { 
-        incrementTourPackageBookingCount, 
-        incrementGuideBookingCount, 
-        blockGuideAvailability 
+      const {
+        incrementTourPackageBookingCount,
+        incrementGuideBookingCount,
+        blockGuideAvailability
       } = require('../services/guideServiceClient');
-      
+
       // Increment tour package booking count
       if (booking.tourPackageId) {
         await incrementTourPackageBookingCount(booking.tourPackageId, 1);
         console.log('✅ Tour package booking count incremented');
       }
-      
+
       // Increment guide's total bookings metric and block the date range
       if (booking.guideId) {
         await incrementGuideBookingCount(booking.guideId, 1);
         console.log('✅ Guide booking count incremented');
-        
+
         // Block the guide's availability for the booked date range
         await blockGuideAvailability(
           booking.guideId,
@@ -795,9 +804,9 @@ router.post('/confirm', authMiddleware, async (req, res, next) => {
 router.post('/cancel-intent', authMiddleware, async (req, res, next) => {
   try {
     if (!stripe) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Stripe not configured' 
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe not configured'
       });
     }
 
@@ -826,7 +835,7 @@ router.post('/cancel-intent', authMiddleware, async (req, res, next) => {
       try {
         const TourPackageBooking = require('../models/TourPackageBooking');
         const booking = await TourPackageBooking.findById(bookingId);
-        
+
         if (booking && booking.status === 'pending') {
           booking.status = 'cancelled';
           booking.payment.status = 'cancelled';
@@ -856,9 +865,9 @@ router.post('/cancel-intent', authMiddleware, async (req, res, next) => {
 router.get('/status/:paymentIntentId', authMiddleware, async (req, res, next) => {
   try {
     if (!stripe) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Stripe not configured' 
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe not configured'
       });
     }
 

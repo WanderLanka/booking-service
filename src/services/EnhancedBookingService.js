@@ -14,21 +14,24 @@ class EnhancedBookingService {
    * @returns {Promise<Object>} Booking confirmation response
    */
   async createCompleteBooking(bookingData) {
+    if (process.env.NODE_ENV === 'production') {
+      throw Object.assign(new Error('Legacy mock checkout is disabled in production'), { statusCode: 503 });
+    }
     // Generate unique booking ID using timestamp and random string
     const bookingId = `BKG_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     let tempReservationId = null;
     let paymentId = null;
 
     try {
-      logger.info('🎯 Starting complete booking process', { 
+      logger.info('🎯 Starting complete booking process', {
         bookingId,
         serviceType: bookingData.serviceType,
-        userId: bookingData.userId 
+        userId: bookingData.userId
       });
 
       // Step 1: Create pending booking record
       const pendingBooking = await this.createPendingBooking(bookingId, bookingData);
-      
+
       // Step 2: Create temporary reservation (without availability check)
       const reservation = await this.createTemporaryReservation(bookingData, bookingId);
       tempReservationId = reservation.reservationId;
@@ -38,7 +41,7 @@ class EnhancedBookingService {
 
       // Step 4: Skip payment processing for now - directly finalize booking
       logger.info('⏭️  Skipping payment processing - directly finalizing booking');
-      
+
       // Create mock payment data for booking finalization
       const mockPayment = {
         paymentId: `MOCK_PAY_${Date.now()}`,
@@ -52,8 +55,8 @@ class EnhancedBookingService {
 
       // Step 5: Update booking to confirmed status (skip payment processing)
       const confirmedBooking = await this.finalizeBookingWithoutPayment(
-        bookingId, 
-        mockPayment, 
+        bookingId,
+        mockPayment,
         tempReservationId,
         bookingData
       );
@@ -121,14 +124,14 @@ class EnhancedBookingService {
 
       // Resolve service provider if missing
       let resolvedProvider = bookingData.serviceProvider || 'Unknown Provider';
-      
+
       console.log('🔍 Service provider resolution:', {
         serviceType: bookingData.serviceType,
         serviceProvider: bookingData.serviceProvider,
         resolvedProvider,
         hasServiceProvider: !!bookingData.serviceProvider
       });
-      
+
       try {
         if (!bookingData.serviceProvider && bookingData.serviceType === 'accommodation') {
           const acc = await this.accommodationAdapter.fetchAccommodationPublic(bookingData.serviceId);
@@ -140,7 +143,7 @@ class EnhancedBookingService {
 
       // Generate confirmation number
       const confirmationNumber = Booking.generateConfirmationNumber();
-      
+
       const booking = new Booking({
         bookingId,
         confirmationNumber,
@@ -152,11 +155,11 @@ class EnhancedBookingService {
         status: 'pending',
         totalAmount: bookingData.totalAmount,
         currency: bookingData.bookingDetails?.currency || 'LKR',
-        
+
         // Store all booking details based on service type
         bookingDetails: {
           currency: bookingData.bookingDetails?.currency || 'LKR',
-          
+
           // Accommodation specific fields
           ...(bookingData.serviceType === 'accommodation' && {
             checkInDate: new Date(bookingData.bookingDetails.checkInDate),
@@ -167,7 +170,7 @@ class EnhancedBookingService {
             nights: bookingData.bookingDetails.nights,
             roomBreakdown: bookingData.bookingDetails.roomBreakdown
           }),
-          
+
           // Transportation specific fields
           ...(bookingData.serviceType === 'transportation' && {
             startDate: new Date(bookingData.bookingDetails.startDate),
@@ -180,7 +183,7 @@ class EnhancedBookingService {
             vehicleType: bookingData.bookingDetails.vehicleType,
             departureTime: bookingData.bookingDetails.departureTime
           }),
-          
+
           // Guide service specific fields
           ...(bookingData.serviceType === 'guide' && {
             tourDate: new Date(bookingData.bookingDetails.tourDate),
@@ -190,7 +193,7 @@ class EnhancedBookingService {
             guideLanguages: bookingData.bookingDetails.guideLanguages
           })
         },
-        
+
         // Payment details (secure - no sensitive card data stored)
         paymentDetails: {
           paymentStatus: 'pending',
@@ -199,7 +202,7 @@ class EnhancedBookingService {
           // Only store last 4 digits for reference
           cardLast4: bookingData.paymentDetails?.cardNumber?.slice(-4)
         },
-        
+
         // Contact information
         contactInfo: {
           email: bookingData.contactInfo.email,
@@ -208,12 +211,12 @@ class EnhancedBookingService {
           firstName: bookingData.contactInfo.firstName,
           lastName: bookingData.contactInfo.lastName
         },
-        
+
         // Initialize reservation details
         reservationDetails: {
           reservationStatus: 'pending'
         },
-        
+
         // Initialize booking timeline
         bookingTimeline: [{
           step: 'booking_created',
@@ -221,7 +224,7 @@ class EnhancedBookingService {
           message: 'Booking record created successfully',
           timestamp: new Date()
         }],
-        
+
         // Metadata
         metadata: {
           platform: 'web',
@@ -230,12 +233,12 @@ class EnhancedBookingService {
       });
 
       await booking.save();
-      logger.info('✅ Pending booking created in database', { 
-        bookingId, 
+      logger.info('✅ Pending booking created in database', {
+        bookingId,
         confirmationNumber,
-        serviceType: bookingData.serviceType 
+        serviceType: bookingData.serviceType
       });
-      
+
       return booking;
     } catch (error) {
       logger.error('❌ Failed to create pending booking:', error.message);
@@ -260,8 +263,8 @@ class EnhancedBookingService {
           bookingId
         });
 
-        logger.info('✅ Temporary reservation created', { 
-          reservationId: reservation.reservationId 
+        logger.info('✅ Temporary reservation created', {
+          reservationId: reservation.reservationId
         });
         return reservation;
       }
@@ -307,9 +310,9 @@ class EnhancedBookingService {
       );
 
       await booking.save();
-      logger.info('✅ Booking updated with reservation details', { 
-        bookingId, 
-        reservationId: reservation.reservationId 
+      logger.info('✅ Booking updated with reservation details', {
+        bookingId,
+        reservationId: reservation.reservationId
       });
     } catch (error) {
       logger.error('❌ Failed to update booking with reservation:', error.message);
@@ -348,8 +351,8 @@ class EnhancedBookingService {
         description: `Payment for ${bookingData.serviceType} booking - ${bookingData.serviceName}`
       });
 
-      logger.info('✅ Payment processed successfully', { 
-        paymentId: payment.paymentId 
+      logger.info('✅ Payment processed successfully', {
+        paymentId: payment.paymentId
       });
 
       return payment;
@@ -374,8 +377,8 @@ class EnhancedBookingService {
         }
       );
 
-      logger.info('✅ Reservation confirmed', { 
-        confirmationNumber: confirmation.confirmationNumber 
+      logger.info('✅ Reservation confirmed', {
+        confirmationNumber: confirmation.confirmationNumber
       });
 
       return confirmation;
@@ -401,7 +404,7 @@ class EnhancedBookingService {
       booking.paymentDetails.transactionId = mockPayment.transactionId;
       booking.paymentDetails.paymentDate = new Date();
       booking.paymentDetails.paymentMethod = 'mock_success';
-      
+
       // Update reservation details
       booking.reservationDetails.reservationStatus = 'confirmed';
       booking.reservationDetails.confirmedAt = new Date();
@@ -412,7 +415,7 @@ class EnhancedBookingService {
         'completed',
         'Payment processing skipped for testing - mock success'
       );
-      
+
       booking.addTimelineStep(
         'booking_confirmed',
         'completed',
@@ -424,28 +427,28 @@ class EnhancedBookingService {
       // Create payment record in payment service
       try {
         const paymentAdapter = require('../adapters').getPaymentAdapter();
-        
+
         // Map service types to match Payment model
-        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' : 
-                                 booking.serviceType === 'accommodation' ? 'accommodation' : 
+        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' :
+                                 booking.serviceType === 'accommodation' ? 'accommodation' :
                                  booking.serviceType === 'guide' ? 'tour_guide' : 'accommodation';
-        
+
         // Prepare provider information
         const providers = {
-          accommodation: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          accommodation: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           },
-          transport: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          transport: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           },
-          guide: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          guide: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           }
         };
-        
+
         // Prepare amounts breakdown
         const amounts = {
           accommodation: booking.serviceType === 'accommodation' ? booking.totalAmount : 0,
@@ -453,7 +456,7 @@ class EnhancedBookingService {
           guide: booking.serviceType === 'guide' ? booking.totalAmount : 0,
           total: booking.totalAmount
         };
-        
+
         const paymentRecord = {
           userId: booking.userId,
           paymentId: mockPayment.transactionId,
@@ -481,14 +484,14 @@ class EnhancedBookingService {
           },
           providers,
           amounts,
-          metadata: { 
-            source: 'booking-service', 
+          metadata: {
+            source: 'booking-service',
             bookingId: booking.bookingId,
             serviceType: booking.serviceType,
             serviceProvider: booking.serviceProvider
           }
         };
-        
+
         console.log('💳 Creating payment record for individual booking:', {
           userId: paymentRecord.userId,
           paymentId: paymentRecord.paymentId,
@@ -496,16 +499,16 @@ class EnhancedBookingService {
           serviceType: paymentRecord.serviceType,
           serviceId: paymentRecord.serviceId
         });
-        
+
         const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
         console.log('✅ Payment record created successfully:', paymentResult);
-        
+
       } catch (paymentError) {
         console.error('❌ Failed to create payment record:', paymentError);
         // Don't fail the booking process if payment record creation fails
       }
 
-      logger.info('✅ Booking finalized successfully (without payment)', { 
+      logger.info('✅ Booking finalized successfully (without payment)', {
         bookingId,
         confirmationNumber: booking.confirmationNumber,
         mockTransactionId: mockPayment.transactionId
@@ -533,7 +536,7 @@ class EnhancedBookingService {
       booking.paymentDetails.paymentStatus = 'completed';
       booking.paymentDetails.transactionId = payment.transactionId;
       booking.paymentDetails.paymentDate = new Date();
-      
+
       // Update reservation details
       booking.reservationDetails.reservationStatus = 'confirmed';
       booking.reservationDetails.confirmedAt = new Date();
@@ -544,7 +547,7 @@ class EnhancedBookingService {
         'completed',
         `Payment processed successfully: ${payment.transactionId}`
       );
-      
+
       booking.addTimelineStep(
         'booking_confirmed',
         'completed',
@@ -556,28 +559,28 @@ class EnhancedBookingService {
       // Create payment record in payment service
       try {
         const paymentAdapter = require('../adapters').getPaymentAdapter();
-        
+
         // Map service types to match Payment model
-        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' : 
-                                 booking.serviceType === 'accommodation' ? 'accommodation' : 
+        const paymentServiceType = booking.serviceType === 'transportation' ? 'transport' :
+                                 booking.serviceType === 'accommodation' ? 'accommodation' :
                                  booking.serviceType === 'guide' ? 'tour_guide' : 'accommodation';
-        
+
         // Prepare provider information
         const providers = {
-          accommodation: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          accommodation: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           },
-          transport: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          transport: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           },
-          guide: { 
-            providerId: booking.serviceProvider || '', 
-            providerName: booking.serviceProvider || 'Unknown Provider' 
+          guide: {
+            providerId: booking.serviceProvider || '',
+            providerName: booking.serviceProvider || 'Unknown Provider'
           }
         };
-        
+
         // Prepare amounts breakdown
         const amounts = {
           accommodation: booking.serviceType === 'accommodation' ? booking.totalAmount : 0,
@@ -585,7 +588,7 @@ class EnhancedBookingService {
           guide: booking.serviceType === 'guide' ? booking.totalAmount : 0,
           total: booking.totalAmount
         };
-        
+
         const paymentRecord = {
           userId: booking.userId,
           paymentId: payment.transactionId,
@@ -613,14 +616,14 @@ class EnhancedBookingService {
           },
           providers,
           amounts,
-          metadata: { 
-            source: 'booking-service', 
+          metadata: {
+            source: 'booking-service',
             bookingId: booking.bookingId,
             serviceType: booking.serviceType,
             serviceProvider: booking.serviceProvider
           }
         };
-        
+
         console.log('💳 Creating payment record for real payment:', {
           userId: paymentRecord.userId,
           paymentId: paymentRecord.paymentId,
@@ -628,16 +631,16 @@ class EnhancedBookingService {
           serviceType: paymentRecord.serviceType,
           serviceId: paymentRecord.serviceId
         });
-        
+
         const paymentResult = await paymentAdapter.createPaymentRecord(paymentRecord);
         console.log('✅ Payment record created successfully:', paymentResult);
-        
+
       } catch (paymentError) {
         console.error('❌ Failed to create payment record:', paymentError);
         // Don't fail the booking process if payment record creation fails
       }
 
-      logger.info('✅ Booking finalized successfully', { 
+      logger.info('✅ Booking finalized successfully', {
         bookingId,
         confirmationNumber: booking.confirmationNumber,
         transactionId: payment.transactionId
@@ -654,11 +657,11 @@ class EnhancedBookingService {
    * Rollback booking in case of failure
    */
   async rollbackBooking(bookingId, reservationId, paymentId, reason) {
-    logger.info('🔄 Starting booking rollback', { 
-      bookingId, 
-      reservationId, 
-      paymentId, 
-      reason 
+    logger.info('🔄 Starting booking rollback', {
+      bookingId,
+      reservationId,
+      paymentId,
+      reason
     });
 
     try {
@@ -768,10 +771,10 @@ class EnhancedBookingService {
       if (booking.reservationDetails.reservationId) {
         try {
           await this.accommodationAdapter.cancelReservation(
-            booking.reservationDetails.reservationId, 
+            booking.reservationDetails.reservationId,
             reason
           );
-          
+
           // Update reservation status
           booking.reservationDetails.reservationStatus = 'cancelled';
           booking.addTimelineStep(
@@ -789,17 +792,17 @@ class EnhancedBookingService {
       if (booking.paymentDetails.transactionId && booking.paymentDetails.paymentStatus === 'completed') {
         try {
           const refund = await this.paymentAdapter.refundPayment(
-            booking.paymentDetails.transactionId, 
-            booking.totalAmount, 
+            booking.paymentDetails.transactionId,
+            booking.totalAmount,
             reason
           );
-          
+
           // Update payment status
           booking.paymentDetails.paymentStatus = 'refunded';
           booking.paymentDetails.refundAmount = booking.totalAmount;
           booking.paymentDetails.refundDate = new Date();
           booking.paymentDetails.refundReason = reason;
-          
+
           booking.addTimelineStep(
             'payment_refunded',
             'completed',
@@ -820,7 +823,7 @@ class EnhancedBookingService {
       booking.status = 'cancelled';
       booking.cancellationDate = new Date();
       booking.cancellationReason = reason;
-      
+
       booking.addTimelineStep(
         'booking_cancelled',
         'completed',
@@ -829,9 +832,9 @@ class EnhancedBookingService {
 
       await booking.save();
 
-      logger.info('✅ Booking cancelled successfully', { 
-        bookingId, 
-        reason 
+      logger.info('✅ Booking cancelled successfully', {
+        bookingId,
+        reason
       });
 
       return {
@@ -869,13 +872,13 @@ class EnhancedBookingService {
 
       // Build secure query filter - only for the authenticated user
       const filter = {};
-      
+
       // Primary filter: by userId (most secure)
       if (userId) {
         filter.userId = userId;
         logger.info('🔒 Filtering bookings by userId:', userId);
       }
-      
+
       // Secondary filter: by email (if userId not available)
       if (userEmail && !userId) {
         filter['contactInfo.email'] = userEmail;
@@ -895,8 +898,8 @@ class EnhancedBookingService {
         .sort({ createdAt: -1 })
         .lean();
 
-      logger.info(`📋 Found ${bookings.length} bookings for authenticated user`, { 
-        userId, 
+      logger.info(`📋 Found ${bookings.length} bookings for authenticated user`, {
+        userId,
         userEmail,
         filterUsed: Object.keys(filter)
       });

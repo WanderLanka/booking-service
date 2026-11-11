@@ -20,17 +20,17 @@ const validateEnhancedBookingRequest = [
   body('bookingDetails').isObject().withMessage('Booking details must be an object'),
   body('paymentDetails').isObject().withMessage('Payment details must be an object'),
   body('contactInfo').isObject().withMessage('Contact info must be an object'),
-  
+
   // Validate contact info
   body('contactInfo.email').isEmail().withMessage('Valid email is required'),
   body('contactInfo.phone').notEmpty().withMessage('Phone number is required'),
-  
+
   // Validate payment details
   body('paymentDetails.cardNumber').notEmpty().withMessage('Card number is required'),
   body('paymentDetails.expiryDate').notEmpty().withMessage('Expiry date is required'),
   body('paymentDetails.cvv').notEmpty().withMessage('CVV is required'),
   body('paymentDetails.cardholderName').notEmpty().withMessage('Cardholder name is required'),
-  
+
   // Accommodation specific validations
   body('bookingDetails.checkInDate').if(body('serviceType').equals('accommodation')).notEmpty().withMessage('Check-in date is required for accommodation'),
   body('bookingDetails.checkOutDate').if(body('serviceType').equals('accommodation')).notEmpty().withMessage('Check-out date is required for accommodation'),
@@ -49,6 +49,7 @@ const validateEnhancedBookingRequest = [
  * 5. Finalizes booking
  */
 router.post('/enhanced', async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production') return res.status(503).json({ success: false, message: 'Legacy mock checkout is disabled in production' });
   console.log('🎯 POST /enhanced endpoint reached - Enhanced booking flow');
   console.log('Enhanced booking request details:', {
     method: req.method,
@@ -151,7 +152,7 @@ router.post('/enhanced', async (req, res, next) => {
       userId: req.user?.userId,
       serviceType: req.body?.serviceType
     });
-    
+
     logger.error('❌ Enhanced booking creation failed:', error);
 
     // Handle specific error types
@@ -193,7 +194,9 @@ router.post('/enhanced', async (req, res, next) => {
 router.get('/enhanced/:bookingId', async (req, res) => {
   try {
     const { bookingId } = req.params;
-    
+    const owned = await require('../models/Booking').findOne({ bookingId, userId: req.user.userId });
+    if (!owned) return res.status(404).json({ success: false, message: 'Booking not found' });
+
     logger.info('📋 Getting enhanced booking details', { bookingId });
 
     const result = await enhancedBookingService.getBookingDetails(bookingId);
@@ -225,12 +228,14 @@ router.get('/enhanced/:bookingId', async (req, res) => {
 router.post('/enhanced/:bookingId/cancel', async (req, res) => {
   try {
     const { bookingId } = req.params;
+    const owned = await require('../models/Booking').findOne({ bookingId, userId: req.user.userId });
+    if (!owned) return res.status(404).json({ success: false, message: 'Booking not found' });
     const { reason } = req.body;
 
     logger.info('❌ Cancelling enhanced booking', { bookingId, reason });
 
     const result = await enhancedBookingService.cancelBooking(
-      bookingId, 
+      bookingId,
       reason || 'User cancellation'
     );
 
@@ -274,7 +279,7 @@ router.get('/provider/bookings', async (req, res) => {
 
     const { serviceType } = req.query;
     const providerId = req.user?.username || req.user?.userId;
-    
+
     console.log('🔍 Provider ID extraction:', {
       username: req.user?.username,
       userId: req.user?.userId,
@@ -319,7 +324,7 @@ router.get('/provider/bookings', async (req, res) => {
     console.log('🔍 Final database filter:', filter);
 
     const bookings = await Booking.find(filter).sort({ createdAt: -1 });
-    
+
     console.log('🔍 Found bookings:', {
       count: bookings.length,
       bookings: bookings.map(b => ({
@@ -344,7 +349,7 @@ router.get('/provider/bookings', async (req, res) => {
 router.get('/userBookings', async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -364,11 +369,11 @@ router.get('/userBookings', async (req, res) => {
 
     // Build filter object
     const filter = { userId };
-    
+
     if (serviceType) {
       filter.serviceType = serviceType;
     }
-    
+
     if (status) {
       filter.status = status;
     }
@@ -394,7 +399,7 @@ router.get('/userBookings', async (req, res) => {
     // Transform bookings to include service-specific details
     const transformedBookings = bookings.map(booking => {
       const bookingObj = booking.toObject ? booking.toObject() : booking;
-      
+
       // Determine the primary date based on service type
       let primaryDate = null;
       if (bookingObj.serviceType === 'accommodation' && bookingObj.bookingDetails.checkInDate) {
@@ -404,7 +409,7 @@ router.get('/userBookings', async (req, res) => {
       } else if (bookingObj.serviceType === 'guide' && bookingObj.bookingDetails.tourDate) {
         primaryDate = new Date(bookingObj.bookingDetails.tourDate).toISOString().split('T')[0];
       }
-      
+
       return {
         ...bookingObj,
         // Add primary date field for easy access
@@ -416,13 +421,13 @@ router.get('/userBookings', async (req, res) => {
         // Format dates for frontend
         bookingDetails: {
           ...bookingObj.bookingDetails,
-          checkInDate: bookingObj.bookingDetails.checkInDate ? 
+          checkInDate: bookingObj.bookingDetails.checkInDate ?
             new Date(bookingObj.bookingDetails.checkInDate).toISOString().split('T')[0] : null,
-          checkOutDate: bookingObj.bookingDetails.checkOutDate ? 
+          checkOutDate: bookingObj.bookingDetails.checkOutDate ?
             new Date(bookingObj.bookingDetails.checkOutDate).toISOString().split('T')[0] : null,
-          startDate: bookingObj.bookingDetails.startDate ? 
+          startDate: bookingObj.bookingDetails.startDate ?
             new Date(bookingObj.bookingDetails.startDate).toISOString().split('T')[0] : null,
-          tourDate: bookingObj.bookingDetails.tourDate ? 
+          tourDate: bookingObj.bookingDetails.tourDate ?
             new Date(bookingObj.bookingDetails.tourDate).toISOString().split('T')[0] : null
         },
         createdAt: new Date(bookingObj.createdAt).toISOString(),
@@ -468,11 +473,11 @@ function getServiceSpecificDetails(booking) {
     currency: booking.currency || 'LKR',
     status: booking.status
   };
-  
+
   if (booking.serviceType === 'accommodation') {
-    details.checkInDate = booking.bookingDetails.checkInDate ? 
+    details.checkInDate = booking.bookingDetails.checkInDate ?
       new Date(booking.bookingDetails.checkInDate).toISOString().split('T')[0] : null;
-    details.checkOutDate = booking.bookingDetails.checkOutDate ? 
+    details.checkOutDate = booking.bookingDetails.checkOutDate ?
       new Date(booking.bookingDetails.checkOutDate).toISOString().split('T')[0] : null;
     details.rooms = booking.bookingDetails.rooms;
     details.adults = booking.bookingDetails.adults;
@@ -482,7 +487,7 @@ function getServiceSpecificDetails(booking) {
     // Use check-in date as the primary date for accommodation
     details.date = details.checkInDate;
   } else if (booking.serviceType === 'transportation') {
-    details.startDate = booking.bookingDetails.startDate ? 
+    details.startDate = booking.bookingDetails.startDate ?
       new Date(booking.bookingDetails.startDate).toISOString().split('T')[0] : null;
     details.days = booking.bookingDetails.days;
     details.passengers = booking.bookingDetails.passengers;
@@ -495,7 +500,7 @@ function getServiceSpecificDetails(booking) {
     // Use start date as the primary date for transportation
     details.date = details.startDate;
   } else if (booking.serviceType === 'guide') {
-    details.tourDate = booking.bookingDetails.tourDate ? 
+    details.tourDate = booking.bookingDetails.tourDate ?
       new Date(booking.bookingDetails.tourDate).toISOString().split('T')[0] : null;
     details.duration = booking.bookingDetails.duration;
     details.groupSize = booking.bookingDetails.groupSize;
@@ -504,7 +509,7 @@ function getServiceSpecificDetails(booking) {
     // Use tour date as the primary date for guide
     details.date = details.tourDate;
   }
-  
+
   return details;
 }
 

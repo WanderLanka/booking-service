@@ -10,6 +10,8 @@ const payRouter = require('./pay');
 const completeRouter = require('./complete');
 
 const router = express.Router();
+router.use(require('../middleware/auth'));
+router.use(require('../middleware/bookingAccess'));
 
 router.use('/create', createRouter);
 router.use('/get', getRouter);

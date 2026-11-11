@@ -28,9 +28,9 @@ class AccommodationAdapter {
 
       // Mock response for testing (replace with actual service call when accommodation service is ready)
       logger.info('🔧 Using mock temporary reservation response for testing');
-      
+
       const mockReservationId = `TEMP_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      
+
       return {
         success: true,
         reservationId: mockReservationId,
@@ -63,8 +63,8 @@ class AccommodationAdapter {
         }
       });
 
-      logger.info('✅ Temporary reservation created', { 
-        reservationId: response.data.reservationId 
+      logger.info('✅ Temporary reservation created', {
+        reservationId: response.data.reservationId
       });
 
       return {
@@ -92,8 +92,8 @@ class AccommodationAdapter {
         }
       });
 
-      logger.info('✅ Temporary reservation created', { 
-        reservationId: response.data.reservationId 
+      logger.info('✅ Temporary reservation created', {
+        reservationId: response.data.reservationId
       });
 
       return {
@@ -119,9 +119,9 @@ class AccommodationAdapter {
    */
   async confirmReservation(reservationId, paymentId, guestDetails) {
     try {
-      logger.info('✅ Confirming accommodation reservation', { 
-        reservationId, 
-        paymentId 
+      logger.info('✅ Confirming accommodation reservation', {
+        reservationId,
+        paymentId
       });
 
       const response = await axios.post(`${this.baseURL}/api/reservations/${reservationId}/confirm`, {
@@ -135,8 +135,8 @@ class AccommodationAdapter {
         }
       });
 
-      logger.info('✅ Reservation confirmed successfully', { 
-        confirmationNumber: response.data.confirmationNumber 
+      logger.info('✅ Reservation confirmed successfully', {
+        confirmationNumber: response.data.confirmationNumber
       });
 
       return {
@@ -159,9 +159,9 @@ class AccommodationAdapter {
    */
   async cancelReservation(reservationId, reason = 'Payment failed') {
     try {
-      logger.info('❌ Cancelling accommodation reservation', { 
-        reservationId, 
-        reason 
+      logger.info('❌ Cancelling accommodation reservation', {
+        reservationId,
+        reason
       });
 
       const response = await axios.post(`${this.baseURL}/api/reservations/${reservationId}/cancel`, {
@@ -198,7 +198,7 @@ class AccommodationAdapter {
     const payload = { adjustments };
     const res = await axios.put(url, payload, {
       timeout: this.timeout,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' }
     });
     return res.data;
   }

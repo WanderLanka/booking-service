@@ -1,12 +1,13 @@
 const axios = require('axios');
 const config = require('../config');
+const internalOptions = () => ({ timeout: 5000, headers: { 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' } });
 const logger = require('../utils/logger');
 
 async function incrementTourPackageBookingCount(tourPackageId, increment = 1) {
   const baseUrl = config.guideServiceUrl;
   const url = `${baseUrl}/tourpackages/${tourPackageId}/booking-count`;
   try {
-    const res = await axios.patch(url, { increment });
+    const res = await axios.patch(url, { increment }, internalOptions());
     return res.data;
   } catch (err) {
     logger.warn(`Failed to update booking count for package ${tourPackageId}: ${err.message}`);
@@ -18,7 +19,7 @@ async function incrementGuideBookingCount(guideId, increment = 1) {
   const baseUrl = config.guideServiceUrl;
   const url = `${baseUrl}/guide/${guideId}/booking-count`;
   try {
-    const res = await axios.patch(url, { increment });
+    const res = await axios.patch(url, { increment }, internalOptions());
     return res.data;
   } catch (err) {
     logger.warn(`Failed to update booking count for guide ${guideId}: ${err.message}`);
@@ -30,7 +31,7 @@ async function blockGuideAvailability(guideId, startDate, endDate) {
   const baseUrl = config.guideServiceUrl;
   const url = `${baseUrl}/guide/${guideId}/availability/block`;
   try {
-    const res = await axios.post(url, { startDate, endDate });
+    const res = await axios.post(url, { startDate, endDate }, internalOptions());
     return res.data;
   } catch (err) {
     logger.warn(`Failed to block availability for guide ${guideId}: ${err.message}`);
@@ -38,7 +39,7 @@ async function blockGuideAvailability(guideId, startDate, endDate) {
   }
 }
 
-module.exports = { 
+module.exports = {
   incrementTourPackageBookingCount,
   incrementGuideBookingCount,
   blockGuideAvailability,
@@ -49,7 +50,7 @@ module.exports = {
     const baseUrl = config.guideServiceUrl;
     const url = `${baseUrl}/guide/${guideId}/response-time`;
     try {
-      const res = await axios.patch(url, { responseTimeMs, alpha });
+      const res = await axios.patch(url, { responseTimeMs, alpha }, internalOptions());
       return res.data;
     } catch (err) {
       logger.warn(`Failed to update response time for guide ${guideId}: ${err.message}`);
